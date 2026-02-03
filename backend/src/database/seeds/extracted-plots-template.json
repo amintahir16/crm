@@ -1,0 +1,32 @@
+{
+  "imagePath": "/plot-map.png",
+  "imageWidth": 0,
+  "imageHeight": 0,
+  "plots": [
+    {
+      "plotNumber": "A-01",
+      "block": "A",
+      "phase": "1",
+      "sizeMarla": 5.0,
+      "sizeSqm": 126.45,
+      "imageBounds": "{\"x\": 100, \"y\": 200, \"width\": 150, \"height\": 120}",
+      "imagePath": "/plot-map.png",
+      "imageWidth": 2000,
+      "imageHeight": 1500,
+      "status": "available",
+      "pricePkr": 3500000,
+      "coordinates": "100,200",
+      "mapX": 5.0,
+      "mapY": 13.3
+    }
+  ],
+  "_instructions": {
+    "imageBounds": "JSON string with pixel coordinates: {\"x\": left, \"y\": top, \"width\": width, \"height\": height}",
+    "coordinates": "Comma-separated: x,y",
+    "mapX": "Percentage: (x / imageWidth) * 100",
+    "mapY": "Percentage: (y / imageHeight) * 100",
+    "pricePkr": "Price in Pakistani Rupees",
+    "status": "available, reserved, or sold"
+  }
+}
+
