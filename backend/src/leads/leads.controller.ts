@@ -1,17 +1,19 @@
-import { 
-  Controller, 
-  Get, 
-  Post, 
-  Body, 
-  Param, 
-  Put, 
-  Delete, 
-  Query, 
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Put,
+  Delete,
+  Query,
   UseGuards,
   ParseUUIDPipe,
   ParseIntPipe,
   DefaultValuePipe,
-  Request
+  Request,
+  BadRequestException,
+  ForbiddenException
 } from '@nestjs/common';
 import { LeadsService, CreateLeadDto, UpdateLeadDto, CreateCommunicationDto, CreateNoteDto, LeadFilters } from './leads.service';
 import { LeadWorkflowService } from './lead-workflow.service';
@@ -22,7 +24,6 @@ import { PermissionsGuard } from '../auth/permissions.guard';
 import { RequirePermissions } from '../auth/permissions.decorator';
 import { Permission } from '../auth/permissions.guard';
 import { LeadStatus, LeadSource, LeadPriority } from './lead.entity';
-import { ForbiddenException } from '@nestjs/common';
 
 @Controller('leads')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -32,7 +33,7 @@ export class LeadsController {
     private readonly leadWorkflowService: LeadWorkflowService,
     private readonly activityService: LeadActivityService,
     private readonly notificationService: CrmNotificationService,
-  ) {}
+  ) { }
 
   @Post()
   @RequirePermissions(Permission.CREATE_LEADS)
@@ -41,8 +42,30 @@ export class LeadsController {
     if (req.user.role === 'sales_person' && !createLeadDto.assignedToUserId) {
       createLeadDto.assignedToUserId = req.user.userId;
     }
-    
+
     return await this.leadsService.createLead(createLeadDto, req.user);
+  }
+
+  @Post('bulk-assign')
+  @RequirePermissions(Permission.EDIT_LEADS)
+  async bulkAssignLeads(
+    @Body() body: { leadIds: string[], assignedToUserId: string },
+    @Request() req
+  ) {
+    // Sales person cannot change assignment
+    if (req.user.role === 'sales_person') {
+      throw new ForbiddenException('Sales person cannot assign leads');
+    }
+
+    if (!body.leadIds || !Array.isArray(body.leadIds) || body.leadIds.length === 0) {
+      throw new BadRequestException('leadIds array is required');
+    }
+
+    if (!body.assignedToUserId) {
+      throw new BadRequestException('assignedToUserId is required');
+    }
+
+    return await this.leadsService.bulkAssignLeads(body.leadIds, body.assignedToUserId, req.user);
   }
 
   @Get()
@@ -122,6 +145,7 @@ export class LeadsController {
     @Query('status') status?: string,
     @Query('source') source?: string,
     @Query('priority') priority?: string,
+    @Query('assignedToUserId') assignedToUserId?: string, // Use query param if provided
     @Query('search') search?: string,
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number = 1,
     @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number = 20,
@@ -132,11 +156,18 @@ export class LeadsController {
       status: status ? status.split(',') as LeadStatus[] : undefined,
       source: source ? source.split(',') as LeadSource[] : undefined,
       priority: priority ? priority.split(',') as LeadPriority[] : undefined,
-      assignedToUserId: req.user.userId,
+      assignedToUserId: assignedToUserId || req.user.userId, // Use query param if provided, otherwise default to current user
       search,
     };
 
-    return await this.leadsService.getAllLeads(filters, page, limit, sortBy, sortOrder);
+    return await this.leadsService.getAllLeads(
+      filters,
+      page,
+      limit,
+      sortBy,
+      sortOrder,
+      { userId: req.user.userId, role: req.user.role } // Pass user context
+    );
   }
 
   // Lead statuses endpoints (must come before :id routes)

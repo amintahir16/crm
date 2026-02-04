@@ -1,10 +1,10 @@
-import { 
-  Controller, 
-  Post, 
+import {
+  Controller,
+  Post,
   Get,
-  UseInterceptors, 
-  UploadedFile, 
-  UseGuards, 
+  UseInterceptors,
+  UploadedFile,
+  UseGuards,
   Request,
   BadRequestException,
   HttpException,
@@ -21,7 +21,7 @@ import { multerConfig } from '../config/multer.config';
 @Controller('leads/import')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class LeadsImportController {
-  constructor(private leadsImportService: LeadsImportService) {}
+  constructor(private leadsImportService: LeadsImportService) { }
 
   @Post('csv')
   @RequirePermissions(Permission.CREATE_LEADS)
@@ -53,7 +53,7 @@ export class LeadsImportController {
       // Import leads
       const result = await this.leadsImportService.importLeadsFromCSV(
         file.buffer,
-        req.user.userId
+        req.user
       );
 
       console.log(`📊 Import Result: ${result.successfulImports}/${result.totalRows} successful`);
@@ -82,7 +82,7 @@ export class LeadsImportController {
 
     } catch (error) {
       console.error('❌ CSV import error:', error);
-      
+
       if (error instanceof BadRequestException) {
         throw error;
       }
@@ -116,21 +116,21 @@ export class LeadsImportController {
       }
       const csvContent = file.buffer.toString('utf-8');
       const lines = csvContent.split('\n').filter(line => line.trim());
-      
+
       if (lines.length < 2) {
         throw new BadRequestException('CSV file must have at least a header and one data row');
       }
 
       const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
-      
+
       // Check for Facebook/Instagram lead format
       const facebookHeaders = ['full_name', 'phone_number', 'email'];
       const facebookHeadersPresent = facebookHeaders.filter(h => headers.includes(h));
-      
+
       // Check for standard format
       const standardHeaders = ['fullname', 'phone', 'email'];
       const standardHeadersPresent = standardHeaders.filter(h => headers.includes(h));
-      
+
       // Accept either Facebook format or standard format
       if (facebookHeadersPresent.length < 2 && standardHeadersPresent.length < 2) {
         throw new BadRequestException(`Missing required headers. Expected either Facebook format (full_name, phone_number, email) or standard format (fullname, phone, email)`);
@@ -148,7 +148,7 @@ export class LeadsImportController {
 
     } catch (error) {
       console.error('❌ CSV validation error:', error);
-      
+
       if (error instanceof BadRequestException) {
         throw error;
       }
@@ -197,7 +197,7 @@ export class LeadsImportController {
 
     } catch (error) {
       console.error('❌ CSV preview error:', error);
-      
+
       if (error instanceof BadRequestException) {
         throw error;
       }
@@ -214,7 +214,7 @@ export class LeadsImportController {
   async getSalesAgents() {
     try {
       const salesAgents = await this.leadsImportService.getSalesAgents();
-      
+
       return {
         success: true,
         message: 'Sales agents retrieved successfully',

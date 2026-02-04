@@ -162,13 +162,13 @@ export default function CSVUpload({ onUploadComplete }: CSVUploadProps) {
   };
 
   // Check if user has permission to upload CSV
-  const canUpload = user && (user.role === 'admin' || user.role === 'sales_manager');
+  const canUpload = user && (user.role === 'admin' || user.role === 'sales_manager' || user.role === 'sales_person');
 
   if (!canUpload) {
     return (
       <div className="bg-red-50 border border-red-200 rounded-lg p-4">
         <p className="text-red-600">You don't have permission to upload CSV files.</p>
-        <p className="text-red-500 text-sm">Only Sales Managers and Admins can upload leads.</p>
+        <p className="text-red-500 text-sm">Only Sales Managers, Admins, and Sales Persons can upload leads.</p>
       </div>
     );
   }
@@ -176,7 +176,7 @@ export default function CSVUpload({ onUploadComplete }: CSVUploadProps) {
   return (
     <div className="bg-white rounded-lg shadow-md p-6">
       <h2 className="text-xl font-semibold mb-4">Import Leads from CSV</h2>
-      
+
       <div className="space-y-4">
         <div>
           <label htmlFor="csv-file" className="block text-sm font-medium text-gray-700 mb-2">
@@ -190,7 +190,7 @@ export default function CSVUpload({ onUploadComplete }: CSVUploadProps) {
             className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
           />
           <p className="text-xs text-gray-500 mt-1">
-            Maximum file size: 5MB. Supports Facebook/Instagram lead exports with auto-assignment to sales agents
+            Maximum file size: 5MB. Supports Facebook/Instagram lead exports. Leads will be imported as unassigned.
           </p>
         </div>
 
@@ -221,7 +221,7 @@ export default function CSVUpload({ onUploadComplete }: CSVUploadProps) {
                 <p><span className="font-medium">Sales Agents:</span> {salesAgents.length}</p>
               </div>
             </div>
-            
+
             {preview.sampleData.length > 0 && (
               <div className="mt-3">
                 <p className="font-medium text-blue-800 mb-2">Sample Data:</p>
@@ -274,8 +274,8 @@ export default function CSVUpload({ onUploadComplete }: CSVUploadProps) {
                     {result.data.failedImports} leads failed to import
                   </p>
                 )}
-                <p className="text-green-600 text-xs mt-1">
-                  Leads automatically assigned to sales agents based on workload
+                <p className="text-blue-600 text-xs mt-1 font-medium">
+                  Leads have been imported as "Unassigned". Please use the Bulk Assignment tool to assign them to agents.
                 </p>
               </div>
             )}
@@ -290,7 +290,7 @@ export default function CSVUpload({ onUploadComplete }: CSVUploadProps) {
           >
             {previewing ? 'Previewing...' : 'Preview Import'}
           </button>
-          
+
           <button
             onClick={validateFile}
             disabled={!file || uploading}
@@ -298,7 +298,7 @@ export default function CSVUpload({ onUploadComplete }: CSVUploadProps) {
           >
             Validate File
           </button>
-          
+
           <button
             onClick={handleUpload}
             disabled={!file || uploading}
@@ -307,23 +307,6 @@ export default function CSVUpload({ onUploadComplete }: CSVUploadProps) {
             {uploading ? 'Importing...' : 'Import Leads'}
           </button>
         </div>
-
-        {salesAgents.length > 0 && (
-          <div className="bg-gray-50 rounded-lg p-3">
-            <h4 className="font-medium text-gray-700 mb-2">Sales Agents Available for Assignment:</h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
-              {salesAgents.map((agent) => (
-                <div key={agent.id} className="flex justify-between items-center">
-                  <span className="text-gray-600">{agent.fullName}</span>
-                  <span className="text-gray-500">Workload: {agent.workloadScore}</span>
-                </div>
-              ))}
-            </div>
-            <p className="text-xs text-gray-500 mt-2">
-              Leads will be automatically assigned to agents with the lowest workload
-            </p>
-          </div>
-        )}
 
         {result?.data?.errors && result.data.errors.length > 0 && (
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">

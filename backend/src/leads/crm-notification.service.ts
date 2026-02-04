@@ -10,7 +10,7 @@ export class CrmNotificationService {
   constructor(
     @InjectRepository(CrmNotification)
     private notificationRepository: Repository<CrmNotification>,
-  ) {}
+  ) { }
 
   /**
    * Create a notification
@@ -89,7 +89,7 @@ export class CrmNotificationService {
   ): Promise<void> {
     const reassignedByName = reassignedBy ? ` by ${reassignedBy.fullName}` : '';
     const oldAssignedName = oldAssignedUser ? ` from ${oldAssignedUser.fullName}` : '';
-    
+
     await this.createNotification(
       newAssignedUser.id,
       NotificationType.LEAD_REASSIGNED,
@@ -189,6 +189,24 @@ export class CrmNotificationService {
    */
   async deleteNotification(notificationId: string): Promise<void> {
     await this.notificationRepository.delete(notificationId);
+  }
+
+  /**
+   * Notify about leads imported by sales person
+   */
+  async notifyLeadsImported(
+    uploader: User,
+    manager: User,
+    count: number,
+  ): Promise<void> {
+    await this.createNotification(
+      manager.id,
+      NotificationType.LEAD_IMPORTED,
+      `New Leads Imported: ${count} leads`,
+      `${uploader.fullName} has imported ${count} new leads which have been assigned to them.`,
+      'user',
+      uploader.id,
+    );
   }
 }
 

@@ -108,11 +108,11 @@ export class LeadsService {
     private workloadUpdateService: WorkloadUpdateService,
     private activityService: LeadActivityService,
     private notificationService: CrmNotificationService,
-  ) {}
+  ) { }
 
   private parseTags(tagsString: string): string[] {
     if (!tagsString) return [];
-    
+
     try {
       // Try to parse as JSON first
       const parsed = JSON.parse(tagsString);
@@ -200,20 +200,20 @@ export class LeadsService {
     });
 
     const savedLead = await this.leadRepository.save(lead);
-    
+
     // Log activity
     await this.activityService.logLeadCreated(savedLead, createdBy || undefined);
-    
+
     // Send notification if assigned
     if (assignedUser) {
       await this.notificationService.notifyLeadAssigned(savedLead, assignedUser, createdBy || undefined);
     }
-    
+
     // Update workload score for the assigned agent
     if (savedLead.assignedToUserId) {
       await this.workloadUpdateService.updateAgentWorkload(savedLead.assignedToUserId);
     }
-    
+
     return savedLead;
   }
 
@@ -239,8 +239,8 @@ export class LeadsService {
         userId: currentUser.userId,
         role: currentUser.role
       });
-      
-      if (currentUser.role === 'sales_person') {
+
+      if (currentUser.role?.toLowerCase() === 'sales_person') {
         // Sales team members can only see leads assigned to them
         console.log('👤 Sales person filtering: assignedToUserId =', currentUser.userId);
         queryBuilder.andWhere('lead.assignedToUserId = :userId', { userId: currentUser.userId });
@@ -295,14 +295,14 @@ export class LeadsService {
     }
 
     if (filters.assignedToUserId) {
-      queryBuilder.andWhere('lead.assignedToUserId = :assignedToUserId', { 
-        assignedToUserId: filters.assignedToUserId 
+      queryBuilder.andWhere('lead.assignedToUserId = :assignedToUserId', {
+        assignedToUserId: filters.assignedToUserId
       });
     }
 
     if (filters.generatedByUserId) {
-      queryBuilder.andWhere('lead.generatedByUserId = :generatedByUserId', { 
-        generatedByUserId: filters.generatedByUserId 
+      queryBuilder.andWhere('lead.generatedByUserId = :generatedByUserId', {
+        generatedByUserId: filters.generatedByUserId
       });
     }
 
@@ -315,14 +315,14 @@ export class LeadsService {
     }
 
     if (filters.lastContactedAfter) {
-      queryBuilder.andWhere('lead.lastContactedAt >= :lastContactedAfter', { 
-        lastContactedAfter: filters.lastContactedAfter 
+      queryBuilder.andWhere('lead.lastContactedAt >= :lastContactedAfter', {
+        lastContactedAfter: filters.lastContactedAfter
       });
     }
 
     if (filters.lastContactedBefore) {
-      queryBuilder.andWhere('lead.lastContactedAt <= :lastContactedBefore', { 
-        lastContactedBefore: filters.lastContactedBefore 
+      queryBuilder.andWhere('lead.lastContactedAt <= :lastContactedBefore', {
+        lastContactedBefore: filters.lastContactedBefore
       });
     }
   }
@@ -388,14 +388,14 @@ export class LeadsService {
 
     // Update lead
     await this.leadRepository.update(lead.id, updateData);
-    
+
     // Get updated lead
     const updatedLead = await this.getLeadById(id);
-    
+
     // Log activities
     if (updateLeadDto.status && updateLeadDto.status !== oldStatus) {
       await this.activityService.logStatusChange(updatedLead, oldStatus, updateLeadDto.status, updatedBy);
-      
+
       // Notify manager if status changed by sales person
       if (updatedBy && updatedBy.role === 'sales_person' && updatedLead.assignedToUser) {
         const manager = await this.userRepository.findOne({
@@ -420,14 +420,14 @@ export class LeadsService {
     if (updateLeadDto.assignedToUserId && updateLeadDto.assignedToUserId !== oldAssignedUserId) {
       const oldAssignedUser = oldAssignedUserId ? await this.userRepository.findOne({ where: { id: oldAssignedUserId } }) : null;
       await this.activityService.logAssignment(
-        updatedLead, 
-        oldAssignedUserId, 
-        updateLeadDto.assignedToUserId, 
+        updatedLead,
+        oldAssignedUserId,
+        updateLeadDto.assignedToUserId,
         updatedBy,
         oldAssignedUser?.fullName,
         newAssignedUser?.fullName,
       );
-      
+
       // Send notifications
       if (newAssignedUser) {
         await this.notificationService.notifyLeadReassigned(
@@ -446,22 +446,22 @@ export class LeadsService {
     if (updatedFields.length > 0) {
       await this.activityService.logUpdate(updatedLead, updatedFields, updatedBy);
     }
-    
+
     // Update workload scores if assignment changed
     if (oldAssignedUserId !== updatedLead.assignedToUserId) {
       await this.workloadUpdateService.handleLeadAssignment(
-        id, 
-        oldAssignedUserId, 
+        id,
+        oldAssignedUserId,
         updatedLead.assignedToUserId
       );
     }
-    
+
     return updatedLead;
   }
 
   async deleteLead(id: string, deletedBy?: User): Promise<void> {
     const lead = await this.getLeadById(id);
-    
+
     // Log activity before deleting
     const leadName = lead.fullName || lead.leadId || 'Lead';
     const userName = deletedBy?.fullName || 'User';
@@ -476,12 +476,12 @@ export class LeadsService {
         leadId: lead.leadId,
       },
     );
-    
+
     // Update workload score for the assigned agent before deleting
     if (lead.assignedToUserId) {
       await this.workloadUpdateService.updateAgentWorkload(lead.assignedToUserId);
     }
-    
+
     await this.leadRepository.remove(lead);
   }
 
@@ -495,7 +495,7 @@ export class LeadsService {
   ): Promise<{ lead: Lead; customer: Customer }> {
     const convertedBy = await this.userRepository.findOne({ where: { id: convertedByUserId } });
     const lead = await this.getLeadById(leadId);
-    
+
     // Check if lead is already converted (using close_won status)
     if (lead.status === LeadStatus.CLOSE_WON) {
       throw new BadRequestException('Lead is already converted');
@@ -529,7 +529,7 @@ export class LeadsService {
   // Communication methods
   async addCommunication(createCommunicationDto: CreateCommunicationDto, addedBy?: User): Promise<LeadCommunication> {
     const lead = await this.getLeadById(createCommunicationDto.leadId);
-    
+
     const communication = this.communicationRepository.create({
       ...createCommunicationDto,
       attachments: createCommunicationDto.attachments ? JSON.stringify(createCommunicationDto.attachments) : null,
@@ -609,7 +609,7 @@ export class LeadsService {
         userId: currentUser.userId,
         role: currentUser.role
       });
-      
+
       if (currentUser.role === 'sales_person') {
         // Sales team members can only see stats for leads assigned to them
         console.log('👤 Sales person stats filtering: assignedToUserId =', currentUser.userId);
@@ -690,9 +690,9 @@ export class LeadsService {
       'close_won',
       'in_process'
     ];
-    
+
     return await this.leadStatusRepository.find({
-      where: { 
+      where: {
         isActive: true,
         name: In(validStatusNames)
       },
@@ -797,5 +797,72 @@ export class LeadsService {
     }
 
     return updatedLead;
+  }
+
+  /**
+   * Bulk assign leads to a user
+   */
+  async bulkAssignLeads(leadIds: string[], assignedToUserId: string, assignedBy?: User): Promise<{ success: boolean, count: number }> {
+    // Validate assigned user
+    const assignedUser = await this.userRepository.findOne({
+      where: { id: assignedToUserId }
+    });
+
+    if (!assignedUser) {
+      throw new NotFoundException('Assigned user not found');
+    }
+
+    // Get leads to check current assignment
+    const leads = await this.leadRepository.find({
+      where: { id: In(leadIds) }
+    });
+
+    if (leads.length === 0) {
+      return { success: true, count: 0 };
+    }
+
+    // Update all leads
+    await this.leadRepository.update(
+      { id: In(leadIds) },
+      { assignedToUserId }
+    );
+
+    // Update workload scores
+    await this.workloadUpdateService.updateAgentWorkload(assignedToUserId);
+
+    // Log activities and notifications for each lead
+    for (const lead of leads) {
+      const oldAssignedUserId = lead.assignedToUserId;
+
+      // Skip if assignment didn't change
+      if (oldAssignedUserId === assignedToUserId) continue;
+
+      const oldAssignedUser = oldAssignedUserId ? await this.userRepository.findOne({ where: { id: oldAssignedUserId } }) : null;
+
+      // Log assignment activity
+      await this.activityService.logAssignment(
+        lead,
+        oldAssignedUserId,
+        assignedToUserId,
+        assignedBy,
+        oldAssignedUser?.fullName,
+        assignedUser.fullName,
+      );
+
+      // Update old agent's workload
+      if (oldAssignedUserId) {
+        await this.workloadUpdateService.updateAgentWorkload(oldAssignedUserId);
+      }
+
+      // Send notification to new agent
+      await this.notificationService.notifyLeadReassigned(
+        lead,
+        assignedUser,
+        oldAssignedUser || undefined,
+        assignedBy,
+      );
+    }
+
+    return { success: true, count: leads.length };
   }
 }

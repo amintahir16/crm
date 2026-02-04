@@ -181,7 +181,7 @@ function AgentDropdown({ lead, salesAgents, onReassign }: AgentDropdownProps) {
         </span>
         <ChevronDown className="w-3 h-3 text-gray-400 ml-1" />
       </div>
-      
+
       {isOpen && (
         <div className="absolute z-10 mt-1 w-48 bg-white border border-gray-300 rounded-lg shadow-lg">
           <div className="p-2 border-b border-gray-200">
@@ -244,7 +244,7 @@ interface StatusDropdownProps {
 function StatusDropdown({ lead, leadStatuses, onUpdateStatus }: StatusDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
 
-  const currentStatus = leadStatuses.find(s => s.id === lead.statusId) || 
+  const currentStatus = leadStatuses.find(s => s.id === lead.statusId) ||
     leadStatuses.find(s => s.name === lead.status) ||
     leadStatuses[0];
 
@@ -288,7 +288,7 @@ function StatusDropdown({ lead, leadStatuses, onUpdateStatus }: StatusDropdownPr
           className="flex items-center cursor-pointer hover:bg-gray-50 px-2 py-1 rounded"
           onClick={() => setIsOpen(!isOpen)}
         >
-          <div 
+          <div
             className="w-3 h-3 rounded-full mr-2 bg-gray-400"
           ></div>
           <span className="text-sm text-gray-900 capitalize">
@@ -296,7 +296,7 @@ function StatusDropdown({ lead, leadStatuses, onUpdateStatus }: StatusDropdownPr
           </span>
           <ChevronDown className="w-3 h-3 text-gray-400 ml-1" />
         </div>
-        
+
         {isOpen && (
           <div className="absolute z-10 mt-1 w-48 bg-white border border-gray-300 rounded-lg shadow-lg">
             <div className="max-h-48 overflow-y-auto">
@@ -306,7 +306,7 @@ function StatusDropdown({ lead, leadStatuses, onUpdateStatus }: StatusDropdownPr
                   className="px-2 py-1 text-xs hover:bg-gray-100 cursor-pointer flex items-center"
                   onClick={() => handleStatusSelect(status.id)}
                 >
-                  <div 
+                  <div
                     className="w-3 h-3 rounded-full mr-2"
                     style={{ backgroundColor: status.color }}
                   ></div>
@@ -333,7 +333,7 @@ function StatusDropdown({ lead, leadStatuses, onUpdateStatus }: StatusDropdownPr
         className="flex items-center cursor-pointer hover:bg-gray-50 px-2 py-1 rounded"
         onClick={() => setIsOpen(!isOpen)}
       >
-        <div 
+        <div
           className="w-3 h-3 rounded-full mr-2"
           style={{ backgroundColor: currentStatus.color || '#6B7280' }}
         ></div>
@@ -342,7 +342,7 @@ function StatusDropdown({ lead, leadStatuses, onUpdateStatus }: StatusDropdownPr
         </span>
         <ChevronDown className="w-3 h-3 text-gray-400 ml-1" />
       </div>
-      
+
       {isOpen && (
         <div className="absolute z-10 mt-1 w-48 bg-white border border-gray-300 rounded-lg shadow-lg">
           <div className="max-h-48 overflow-y-auto">
@@ -352,7 +352,7 @@ function StatusDropdown({ lead, leadStatuses, onUpdateStatus }: StatusDropdownPr
                 className="px-2 py-1 text-xs hover:bg-gray-100 cursor-pointer flex items-center"
                 onClick={() => handleStatusSelect(status.id)}
               >
-                <div 
+                <div
                   className="w-3 h-3 rounded-full mr-2"
                   style={{ backgroundColor: status.color }}
                 ></div>
@@ -422,7 +422,7 @@ function PriorityDropdown({ lead, onUpdatePriority }: PriorityDropdownProps) {
         </span>
         <ChevronDown className="w-3 h-3 text-gray-400 ml-1" />
       </div>
-      
+
       {isOpen && (
         <div className="absolute z-10 mt-1 w-32 bg-white border border-gray-300 rounded-lg shadow-lg">
           <div className="max-h-32 overflow-y-auto">
@@ -467,6 +467,8 @@ export default function LeadsPage() {
   const [showCSVUpload, setShowCSVUpload] = useState(false);
   const [salesAgents, setSalesAgents] = useState<User[]>([]);
   const [leadStatuses, setLeadStatuses] = useState<LeadStatus[]>([]);
+  const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
+  const [isBulkAssigning, setIsBulkAssigning] = useState(false);
 
   useEffect(() => {
     console.log('🔄 useEffect triggered:', {
@@ -481,21 +483,21 @@ export default function LeadsPage() {
       priorityFilter,
       agentFilter
     });
-    
+
     if (isAuthenticated && !isLoading) {
       console.log('✅ Conditions met, fetching data...');
       fetchLeads();
       fetchStats();
       fetchLeadStatuses(); // Fetch statuses for all users
-      
+
       // Fetch sales agents for managers
       if (user?.role === 'admin' || user?.role === 'sales_manager') {
         fetchSalesAgents();
       }
-      
+
       // Check if import=csv query parameter is present
       const importParam = searchParams.get('import');
-      if (importParam === 'csv' && (user?.role === 'admin' || user?.role === 'sales_manager')) {
+      if (importParam === 'csv' && (user?.role === 'admin' || user?.role === 'sales_manager' || user?.role === 'sales_person')) {
         setShowCSVUpload(true);
       }
     } else {
@@ -524,7 +526,7 @@ export default function LeadsPage() {
     try {
       setIsLoadingLeads(true);
       const token = localStorage.getItem('access_token');
-      
+
       // Debug token
       if (token) {
         try {
@@ -542,7 +544,7 @@ export default function LeadsPage() {
       } else {
         console.log('🔑 No token found');
       }
-      
+
       const params = new URLSearchParams({
         page: currentPage.toString(),
         limit: '20',
@@ -556,14 +558,14 @@ export default function LeadsPage() {
 
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
       const url = `${apiUrl}/leads?${params}`;
-      
+
       console.log('🔍 Fetching leads:', {
         url,
         userRole: user?.role,
         userId: user?.id,
         token: token ? 'present' : 'missing'
       });
-      
+
       const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -585,7 +587,7 @@ export default function LeadsPage() {
           pagination: data.pagination,
           rawData: data
         });
-        
+
         if (data.data && data.data.length > 0) {
           console.log('✅ Leads found:', data.data.slice(0, 3).map((lead: any) => ({
             id: lead.id,
@@ -596,7 +598,7 @@ export default function LeadsPage() {
         } else {
           console.log('❌ No leads in data.data:', data);
         }
-        
+
         console.log('📝 Setting leads state:', {
           leadsCount: data.data?.length || 0,
           totalPages: data.pagination?.pages || 0,
@@ -606,7 +608,7 @@ export default function LeadsPage() {
             email: data.data[0].email
           } : null
         });
-        
+
         setLeads(data.data);
         setTotalPages(data.pagination.pages);
       } else {
@@ -616,7 +618,7 @@ export default function LeadsPage() {
           statusText: response.statusText,
           error: errorData
         });
-        
+
         // Handle authentication errors
         if (response.status === 401 || response.status === 403) {
           console.log('🔐 Authentication error - redirecting to login');
@@ -723,7 +725,7 @@ export default function LeadsPage() {
       const token = localStorage.getItem('access_token');
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
       console.log('🔄 Updating lead status:', { leadId, statusId });
-      
+
       const response = await fetch(`${apiUrl}/leads/${leadId}/status`, {
         method: 'PUT',
         headers: {
@@ -810,6 +812,62 @@ export default function LeadsPage() {
     }
   };
 
+  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.checked) {
+      setSelectedLeads(leads.map(lead => lead.id));
+    } else {
+      setSelectedLeads([]);
+    }
+  };
+
+  const handleSelectLead = (leadId: string) => {
+    if (selectedLeads.includes(leadId)) {
+      setSelectedLeads(selectedLeads.filter(id => id !== leadId));
+    } else {
+      setSelectedLeads([...selectedLeads, leadId]);
+    }
+  };
+
+  const handleBulkAssign = async (agentId: string) => {
+    if (!agentId || selectedLeads.length === 0) return;
+    if (!confirm(`Are you sure you want to assign ${selectedLeads.length} leads to this agent?`)) return;
+
+    try {
+      setIsBulkAssigning(true);
+      const token = localStorage.getItem('access_token');
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+
+      const response = await fetch(`${apiUrl}/leads/bulk-assign`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          leadIds: selectedLeads,
+          assignedToUserId: agentId,
+        }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        // Clear selection and refresh
+        setSelectedLeads([]);
+        fetchLeads();
+        fetchStats();
+        alert(`Successfully assigned ${result.count} leads`);
+      } else {
+        const error = await response.json();
+        alert(error.message || 'Failed to assign leads');
+      }
+    } catch (error) {
+      console.error('Error assigning leads:', error);
+      alert('Error assigning leads');
+    } finally {
+      setIsBulkAssigning(false);
+    }
+  };
+
   const handleDeleteLead = async (leadId: string) => {
     if (!confirm('Are you sure you want to delete this lead?')) return;
 
@@ -869,7 +927,7 @@ export default function LeadsPage() {
           <p className="text-gray-600">Manage your sales leads and track conversions</p>
         </div>
         <div className="flex gap-3">
-          {(user?.role === 'admin' || user?.role === 'sales_manager') && (
+          {(user?.role === 'admin' || user?.role === 'sales_manager' || user?.role === 'sales_person') && (
             <button
               onClick={() => setShowCSVUpload(!showCSVUpload)}
               className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2"
@@ -891,7 +949,7 @@ export default function LeadsPage() {
       {/* CSV Upload Section */}
       {showCSVUpload && (
         <div className="bg-white rounded-lg shadow-sm border p-6">
-          <CSVUpload 
+          <CSVUpload
             onUploadComplete={(result) => {
               console.log('CSV upload completed:', result);
               // Refresh leads list after successful import
@@ -1061,6 +1119,43 @@ export default function LeadsPage() {
         </div>
       </div>
 
+      {/* Bulk Actions Bar */}
+      {selectedLeads.length > 0 && (user?.role === 'admin' || user?.role === 'sales_manager') && (
+        <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg shadow-sm flex items-center justify-between animate-in fade-in slide-in-from-top-2">
+          <div className="flex items-center gap-3">
+            <span className="text-blue-700 font-medium">
+              {selectedLeads.length} lead{selectedLeads.length !== 1 ? 's' : ''} selected
+            </span>
+            <button
+              onClick={() => setSelectedLeads([])}
+              className="text-sm text-blue-600 hover:text-blue-800 underline"
+            >
+              Clear selection
+            </button>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-blue-700">Assign to:</span>
+            <select
+              onChange={(e) => {
+                if (e.target.value) {
+                  handleBulkAssign(e.target.value);
+                  e.target.value = ''; // Reset select
+                }
+              }}
+              disabled={isBulkAssigning}
+              className="text-sm border-blue-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white"
+            >
+              <option value="">Select Agent...</option>
+              {salesAgents.map((agent) => (
+                <option key={agent.id} value={agent.id}>
+                  {agent.fullName}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      )}
+
       {/* Leads Table */}
       <div className="bg-white rounded-lg shadow-sm border overflow-hidden" style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
         {isLoadingLeads ? (
@@ -1076,10 +1171,10 @@ export default function LeadsPage() {
             </div>
           </div>
         ) : (
-          <div 
-            className="overflow-x-auto" 
-            style={{ 
-              width: '100%', 
+          <div
+            className="overflow-x-auto"
+            style={{
+              width: '100%',
               maxWidth: '100%',
               overflowX: 'auto',
               overflowY: 'visible',
@@ -1089,6 +1184,14 @@ export default function LeadsPage() {
             <table className="w-full" style={{ minWidth: '850px', tableLayout: 'auto' }}>
               <thead className="bg-gray-50">
                 <tr>
+                  <th className="px-3 py-3 w-8">
+                    <input
+                      type="checkbox"
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      checked={leads.length > 0 && selectedLeads.length === leads.length}
+                      onChange={handleSelectAll}
+                    />
+                  </th>
                   <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Lead Info
                   </th>
@@ -1119,7 +1222,16 @@ export default function LeadsPage() {
                 {leads.map((lead) => {
                   const SourceIcon = sourceIcons[lead.source as keyof typeof sourceIcons] || AlertCircle;
                   return (
-                    <tr key={lead.id} className="hover:bg-gray-50">
+                    <tr key={lead.id} className={`hover:bg-gray-50 ${selectedLeads.includes(lead.id) ? 'bg-blue-50' : ''}`}>
+                      <td className="px-3 py-2">
+                        <input
+                          type="checkbox"
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          checked={selectedLeads.includes(lead.id)}
+                          onChange={() => handleSelectLead(lead.id)}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </td>
                       <td className="px-2 py-2 whitespace-nowrap">
                         <div>
                           <div className="flex items-center gap-1.5">
@@ -1134,13 +1246,12 @@ export default function LeadsPage() {
                             Created {formatDistanceToNow(new Date(lead.createdAt), { addSuffix: true })}
                           </div>
                           {lead.dueDate && (
-                            <div className={`text-xs mt-1 ${
-                              new Date(lead.dueDate) < new Date() 
-                                ? 'text-red-600 font-medium' 
-                                : new Date(lead.dueDate).toDateString() === new Date().toDateString()
+                            <div className={`text-xs mt-1 ${new Date(lead.dueDate) < new Date()
+                              ? 'text-red-600 font-medium'
+                              : new Date(lead.dueDate).toDateString() === new Date().toDateString()
                                 ? 'text-orange-600 font-medium'
                                 : 'text-gray-500'
-                            }`}>
+                              }`}>
                               Due: {new Date(lead.dueDate).toLocaleDateString()}
                               {new Date(lead.dueDate) < new Date() && ' (Overdue)'}
                               {new Date(lead.dueDate).toDateString() === new Date().toDateString() && ' (Today)'}
@@ -1156,6 +1267,11 @@ export default function LeadsPage() {
                               {lead.tags.length > 2 && (
                                 <span className="text-xs text-gray-500">+{lead.tags.length - 2} more</span>
                               )}
+                            </div>
+                          )}
+                          {lead.initialNotes && (
+                            <div className="text-xs text-gray-500 mt-1 line-clamp-2 italic" title={lead.initialNotes}>
+                              {lead.initialNotes}
                             </div>
                           )}
                         </div>

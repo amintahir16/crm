@@ -12,6 +12,7 @@ export enum NotificationType {
   LEAD_CONVERTED = 'lead_converted',
   TEAM_MEMBER_ADDED = 'team_member_added',
   TEAM_MEMBER_UPDATED = 'team_member_updated',
+  LEAD_IMPORTED = 'lead_imported',
 }
 
 @Entity('crm_notifications')

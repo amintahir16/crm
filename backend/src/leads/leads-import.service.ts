@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { Lead, LeadSource, LeadStatus, LeadPriority } from './lead.entity';
 import { User, UserRole } from '../users/user.entity';
 import { LeadAutomationService } from './lead-automation.service';
+import { CrmNotificationService } from './crm-notification.service';
 import { LiveWorkloadService } from '../users/live-workload.service';
 import * as csv from 'csv-parser';
 import { Readable } from 'stream';
@@ -25,9 +26,10 @@ export class LeadsImportService {
     private userRepository: Repository<User>,
     private leadAutomationService: LeadAutomationService,
     private liveWorkloadService: LiveWorkloadService,
-  ) {}
+    private crmNotificationService: CrmNotificationService,
+  ) { }
 
-  async importLeadsFromCSV(csvBuffer: Buffer, importedBy: string): Promise<LeadImportResult> {
+  async importLeadsFromCSV(csvBuffer: Buffer, user: { userId: string, role: string }): Promise<LeadImportResult> {
     const result: LeadImportResult = {
       totalRows: 0,
       successfulImports: 0,
@@ -37,18 +39,11 @@ export class LeadsImportService {
     };
 
     try {
-      // Get all active sales agents for assignment
-      const salesAgents = await this.userRepository.find({
-        where: { 
-          role: UserRole.SALES_PERSON,
-          isActive: true 
-        },
-        order: { workloadScore: 'ASC' }
-      });
-
-      if (salesAgents.length === 0) {
-        throw new BadRequestException('No active sales agents found for lead assignment');
-      }
+      // Note: Auto-assignment is disabled for managers (unassigned by default).
+      // However, for sales persons, we auto-assign the lead to THEM.
+      console.log('🔍 Import initiated by user:', JSON.stringify(user));
+      const shouldAutoAssignToUploader = user.role?.toLowerCase() === 'sales_person';
+      console.log('🤖 Auto-assign to uploader?', shouldAutoAssignToUploader);
 
       const leads: any[] = [];
       const stream = Readable.from(csvBuffer.toString());
@@ -160,14 +155,13 @@ export class LeadsImportService {
             budgetRange: parsedLead.budgetRange,
             preferredContactMethod: parsedLead.preferredContactMethod,
             preferredContactTime: parsedLead.preferredContactTime,
-            generatedByUserId: importedBy,
+            generatedByUserId: user.userId,
             createdAt: parsedLead.createdAt,
           });
 
-          // Auto-assign to sales agent
-          const assignedAgent = await this.selectSalesAgent(salesAgents, lead);
-          if (assignedAgent) {
-            lead.assignedToUserId = assignedAgent.id;
+          // Auto-assign to uploader if they are a sales person
+          if (shouldAutoAssignToUploader) {
+            lead.assignedToUserId = user.userId;
           }
 
           // Save lead
@@ -175,7 +169,7 @@ export class LeadsImportService {
           result.importedLeads.push(savedLead);
           result.successfulImports++;
 
-          console.log(`✅ Imported lead: ${savedLead.fullName} -> ${assignedAgent?.fullName || 'Unassigned'}`);
+          console.log(`✅ Imported lead: ${savedLead.fullName} -> ${lead.assignedToUserId ? 'Assigned to Uploader' : 'Unassigned'}`);
 
         } catch (error) {
           result.errors.push(`Row ${rowNumber}: ${error.message}`);
@@ -185,6 +179,29 @@ export class LeadsImportService {
       }
 
       console.log(`📊 Import Complete: ${result.successfulImports} successful, ${result.failedImports} failed`);
+
+      // Notify Manager if Sales Person imported leads
+      if (shouldAutoAssignToUploader && result.successfulImports > 0) {
+        try {
+          const uploader = await this.userRepository.findOne({
+            where: { id: user.userId },
+            relations: ['assignedManager'],
+          });
+
+          if (uploader && uploader.assignedManager) {
+            await this.crmNotificationService.notifyLeadsImported(
+              uploader,
+              uploader.assignedManager,
+              result.successfulImports
+            );
+            console.log(`🔔 Notification sent to manager: ${uploader.assignedManager.fullName}`);
+          } else {
+            console.log('⚠️ No assigned manager found for notification.');
+          }
+        } catch (error) {
+          console.error('❌ Failed to send manager notification:', error);
+        }
+      }
 
     } catch (error) {
       result.errors.push(`Import failed: ${error.message}`);
@@ -207,24 +224,26 @@ export class LeadsImportService {
 
   private isTestData(row: any): boolean {
     // Check if this is test/dummy data
-    const fullName = row.full_name || row.fullName || '';
-    const phone = row.phone_number || row.phone || '';
-    const email = row.email || '';
-    
-    return fullName.includes('<test lead:') || 
-           phone.includes('<test lead:') || 
-           email.includes('test@fb.com') ||
-           fullName.includes('dummy data');
+    const fullName = row.full_name || row.fullName || row['FULL NAME'] || '';
+    const phone = row.phone_number || row.phone || row['PHONE'] || '';
+    const email = row.email || row['EMAIL'] || '';
+
+    return fullName.includes('<test lead:') ||
+      phone.includes('<test lead:') ||
+      email.includes('test@fb.com') ||
+      fullName.includes('dummy data');
   }
 
   private parseFacebookLead(row: any): any {
     try {
-      // Extract phone number from Facebook format (p:+923005678901)
-      let phone = row.phone_number || row.phone || '';
+      // Extract phone number from various possible columns
+      // Format in CSV is likely p:+92...
+      let phone = row.phone_number || row.phone || row['PHONE'] || '';
+
       if (phone.startsWith('p:')) {
         phone = phone.substring(2);
       }
-      
+
       // Clean phone number
       phone = phone.replace(/[^\d+]/g, '');
       if (phone.startsWith('92') && !phone.startsWith('+92')) {
@@ -234,19 +253,21 @@ export class LeadsImportService {
       }
 
       // Extract full name
-      const fullName = row.full_name || row.fullName || '';
-      
+      const fullName = row.full_name || row.fullName || row['FULL NAME'] || '';
+
       // Extract email
-      const email = row.email || '';
-      
+      const email = row.email || row['EMAIL'] || '';
+
       // Extract city
-      const city = row.city || '';
-      
+      const city = row.city || row['CITY'] || '';
+
       // Determine source based on platform
       let source = LeadSource.OTHER;
-      if (row.platform === 'fb') {
+      const platform = row.platform || row['SOCIAL PLATFORMS'] || '';
+
+      if (platform.toLowerCase() === 'fb' || platform.toLowerCase().includes('facebook')) {
         source = LeadSource.FACEBOOK_ADS;
-      } else if (row.platform === 'ig') {
+      } else if (platform.toLowerCase() === 'ig' || platform.toLowerCase().includes('instagram')) {
         source = LeadSource.INSTAGRAM_ADS;
       } else if (row.is_organic === 'true') {
         source = LeadSource.WEBSITE;
@@ -254,32 +275,29 @@ export class LeadsImportService {
 
       // Create source details
       const sourceDetails = {
-        campaignId: row.campaign_id || '',
-        campaignName: row.campaign_name || '',
-        adId: row.ad_id || '',
-        adName: row.ad_name || '',
-        adsetId: row.adset_id || '',
-        adsetName: row.adset_name || '',
-        formId: row.form_id || '',
-        formName: row.form_name || '',
-        platform: row.platform || '',
-        isOrganic: row.is_organic === 'true',
+        platform: platform,
+        plotSize: row['PLOT SIZE'] || '',
+        paymentMethod: row['PAYMENT METHOD'] || '',
+        leadStatus: row['LEAD STATUS'] || '',
         leadId: row.id || '',
-        leadStatus: row.lead_status || ''
       };
 
-      // Determine priority based on campaign type
+      // Determine priority based on budget/plot size if available
       let priority = LeadPriority.MEDIUM;
-      if (row.ad_name && row.ad_name.toLowerCase().includes('reel')) {
-        priority = LeadPriority.HIGH; // Reel ads typically get higher engagement
-      }
+      // You could add logic here to set HIGH priority for larger plots (e.g. 1 kanal)
 
-      // Use current time for imported leads (ignore CSV dates)
-      // This ensures leads are treated as newly imported regardless of CSV timestamps
+      // Use current time for imported leads
       const createdAt = new Date();
 
-      // Create initial notes
-      const initialNotes = `Imported from ${row.platform?.toUpperCase() || 'Facebook'} campaign: ${row.campaign_name || 'Unknown'} (ID: ${row.campaign_id || 'N/A'}). Ad: ${row.ad_name || 'N/A'} (ID: ${row.ad_id || 'N/A'}). Form: ${row.form_name || 'Form'} (ID: ${row.form_id || 'N/A'}). City: ${city}. Organic: ${row.is_organic === 'true' ? 'Yes' : 'No'}`;
+      // Create initial notes from extra columns
+      const plotSize = row['PLOT SIZE'] ? `Plot Size: ${row['PLOT SIZE']}. ` : '';
+      const paymentMethod = row['PAYMENT METHOD'] ? `Payment: ${row['PAYMENT METHOD']}. ` : '';
+
+      // Capture Description/Details
+      const description = row['DESCRIPTION'] || row['DETAILS'] || row['description'] || row['details'] || '';
+      const descriptionText = description ? `\nDetails: ${description}` : '';
+
+      const initialNotes = `${plotSize}${paymentMethod}Imported from ${platform || 'CSV'}${descriptionText}`;
 
       return {
         fullName: fullName.trim(),
@@ -289,10 +307,10 @@ export class LeadsImportService {
         sourceDetails: JSON.stringify(sourceDetails),
         priority,
         initialNotes,
-        interests: `Real estate investment in Murree`,
-        budgetRange: null, // Not available in Facebook leads
-        preferredContactMethod: 'phone', // Default for Facebook leads
-        preferredContactTime: 'evening', // Default
+        interests: row['PLOT SIZE'] ? `Plot Size: ${row['PLOT SIZE']}` : null,
+        budgetRange: null,
+        preferredContactMethod: 'phone',
+        preferredContactTime: 'evening',
         createdAt
       };
     } catch (error) {
@@ -320,7 +338,7 @@ export class LeadsImportService {
 
   private mapPriority(budgetRange: string): LeadPriority {
     if (!budgetRange) return LeadPriority.MEDIUM;
-    
+
     const budget = parseFloat(budgetRange);
     if (budget >= 15000000) return LeadPriority.HIGH;
     if (budget >= 5000000) return LeadPriority.MEDIUM;
@@ -345,7 +363,7 @@ export class LeadsImportService {
 
     // Sort by assignment score (lower is better)
     agentsWithWorkload.sort((a, b) => a.assignmentScore - b.assignmentScore);
-    
+
     return agentsWithWorkload[0].agent;
   }
 
@@ -361,7 +379,7 @@ export class LeadsImportService {
 
     try {
       console.log('📊 Starting CSV preview with buffer size:', csvBuffer?.length || 'undefined');
-      
+
       if (!csvBuffer) {
         preview.errors.push('No CSV buffer provided');
         return preview;
@@ -371,7 +389,7 @@ export class LeadsImportService {
       const csvString = csvBuffer.toString('utf-8');
       console.log('📊 CSV string length:', csvString.length);
       console.log('📊 First 200 chars:', csvString.substring(0, 200));
-      
+
       const stream = Readable.from(csvString);
 
       await new Promise((resolve, reject) => {
@@ -404,7 +422,7 @@ export class LeadsImportService {
           platform: row.platform,
           is_organic: row.is_organic
         });
-        
+
         if (this.isTestData(row)) {
           console.log(`📊 Row ${i + 1} is test data, skipping`);
           preview.testRows++;
@@ -442,9 +460,9 @@ export class LeadsImportService {
 
   async getSalesAgents(): Promise<any[]> {
     const salesAgents = await this.userRepository.find({
-      where: { 
+      where: {
         role: UserRole.SALES_PERSON,
-        isActive: true 
+        isActive: true
       },
       select: ['id', 'fullName', 'email']
     });
