@@ -43,6 +43,8 @@ interface BookingFormData {
   paymentPlanId?: string;
   installmentCount?: number;
   notes?: string;
+  discountPercentage?: number;
+  originalAmount?: number;
 }
 
 interface PaymentPlan {
@@ -75,6 +77,8 @@ export default function NewBookingPage() {
   const [selectedPlot, setSelectedPlot] = useState<Plot | null>(null);
   const [selectedPaymentPlan, setSelectedPaymentPlan] = useState<PaymentPlan | null>(null);
 
+  const [discountPercent, setDiscountPercent] = useState<number>(0);
+
   const [formData, setFormData] = useState<BookingFormData>({
     customerId: '',
     plotId: '',
@@ -86,6 +90,8 @@ export default function NewBookingPage() {
     paymentPlanId: '',
     installmentCount: 24,
     notes: '',
+    discountPercentage: 0,
+    originalAmount: 0,
   });
 
   const [errors, setErrors] = useState<Partial<BookingFormData>>({});
@@ -109,13 +115,7 @@ export default function NewBookingPage() {
     }
   }, [isAuthenticated]);
 
-  // Debug form data changes
-  useEffect(() => {
-    console.log('=== FORM DATA CHANGED ===');
-    console.log('New form data:', formData);
-    console.log('Down payment:', formData.downPayment);
-    console.log('Total amount:', formData.totalAmount);
-  }, [formData]);
+
 
 
   const fetchData = async () => {
@@ -157,9 +157,6 @@ export default function NewBookingPage() {
   };
 
   const validateForm = (): boolean => {
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/c7c25835-cb2a-4279-8c31-ce35bd5734cb',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'new/page.tsx:159',message:'validateForm entry',data:{formData,paymentType:formData.paymentType,downPayment:formData.downPayment,paidAmount:formData.paidAmount,totalAmount:formData.totalAmount},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
     const newErrors: Partial<BookingFormData> = {};
 
     // Convert to numbers for proper comparison
@@ -195,10 +192,6 @@ export default function NewBookingPage() {
       newErrors.paidAmount = 'Initial payment cannot be greater than total amount' as any;
     }
 
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/c7c25835-cb2a-4279-8c31-ce35bd5734cb',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'new/page.tsx:190',message:'Before installment validation',data:{paymentType:formData.paymentType,downPayment:downPaymentNum,paidAmount:paidAmountNum,totalAmount:totalAmountNum,errorsSoFar:Object.keys(newErrors)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
-
     if (formData.paymentType === 'installment') {
       if (!formData.paymentPlanId) {
         newErrors.paymentPlanId = 'Payment plan is required for installment bookings' as any;
@@ -206,14 +199,8 @@ export default function NewBookingPage() {
       if (!formData.installmentCount || formData.installmentCount < 1) {
         newErrors.installmentCount = 'Installment count must be at least 1' as any;
       }
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/c7c25835-cb2a-4279-8c31-ce35bd5734cb',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'new/page.tsx:197',message:'Installment validation check',data:{downPayment:downPaymentNum,paidAmount:paidAmountNum,shouldRequirePaidAmount:downPaymentNum>0,currentErrors:Object.keys(newErrors)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
     }
 
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/c7c25835-cb2a-4279-8c31-ce35bd5734cb',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'new/page.tsx:199',message:'validateForm exit',data:{errors:newErrors,errorCount:Object.keys(newErrors).length,isValid:Object.keys(newErrors).length===0},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -221,14 +208,7 @@ export default function NewBookingPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/c7c25835-cb2a-4279-8c31-ce35bd5734cb',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'new/page.tsx:203',message:'handleSubmit entry',data:{formData},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-    // #endregion
-
     if (!validateForm()) {
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/c7c25835-cb2a-4279-8c31-ce35bd5734cb',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'new/page.tsx:206',message:'Validation failed, blocking submit',data:{errors},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-      // #endregion
       return;
     }
 
@@ -237,16 +217,12 @@ export default function NewBookingPage() {
     try {
       const token = localStorage.getItem('access_token');
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
-      
+
       const requestBody = {
         ...formData,
         createdById: user?.id,
       };
-      
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/c7c25835-cb2a-4279-8c31-ce35bd5734cb',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'new/page.tsx:220',message:'Sending request to backend',data:{requestBody},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-      // #endregion
-      
+
       const response = await fetch(`${apiUrl}/bookings`, {
         method: 'POST',
         headers: {
@@ -255,22 +231,12 @@ export default function NewBookingPage() {
         },
         body: JSON.stringify(requestBody),
       });
-      
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/c7c25835-cb2a-4279-8c31-ce35bd5734cb',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'new/page.tsx:229',message:'Response received',data:{status:response.status,ok:response.ok},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-      // #endregion
-      
+
       if (response.ok) {
-        const successData = await response.json();
+        await response.json();
         router.push('/dashboard/bookings');
       } else {
         const errorData = await response.json();
-        
-        // #region agent log
-        fetch('http://127.0.0.1:7243/ingest/c7c25835-cb2a-4279-8c31-ce35bd5734cb',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'new/page.tsx:234',message:'Backend error response',data:{errorData},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-        // #endregion
-        
-        // Handle specific validation errors
         if (errorData.message && Array.isArray(errorData.message)) {
           const validationErrors: Partial<BookingFormData> = {};
           errorData.message.forEach((error: string) => {
@@ -284,9 +250,6 @@ export default function NewBookingPage() {
         }
       }
     } catch (error) {
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/c7c25835-cb2a-4279-8c31-ce35bd5734cb',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'new/page.tsx:249',message:'Exception caught',data:{error:error instanceof Error?error.message:String(error)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-      // #endregion
       console.error('Error creating booking:', error);
       alert('An error occurred while creating the booking.');
     } finally {
@@ -296,37 +259,17 @@ export default function NewBookingPage() {
 
   const handleInputChange = (field: keyof BookingFormData, value: string | number) => {
     setFormData(prev => ({ ...prev, [field]: value }));
-    
+
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: undefined }));
     }
   };
 
   const handleNumberInputChange = (field: keyof BookingFormData, value: string) => {
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/c7c25835-cb2a-4279-8c31-ce35bd5734cb',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'new/page.tsx:265',message:'handleNumberInputChange entry',data:{field,value,currentFormData:formData},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-    // #endregion
-    console.log(`=== NUMBER INPUT CHANGE: ${field} ===`);
-    console.log('Input value:', value);
-    console.log('Previous form data:', formData);
-    
-    // Allow empty string, use parseInt for whole numbers to avoid precision issues
     const numericValue = value === '' ? 0 : parseInt(value, 10) || 0;
-    
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/c7c25835-cb2a-4279-8c31-ce35bd5734cb',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'new/page.tsx:271',message:'Numeric conversion result',data:{originalValue:value,numericValue,isEmpty:value===''},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-    // #endregion
-    console.log('Calculated numeric value:', numericValue);
-    
-    setFormData(prev => {
-      const updated = { ...prev, [field]: numericValue };
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/c7c25835-cb2a-4279-8c31-ce35bd5734cb',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'new/page.tsx:276',message:'Form data updated',data:{field,updatedValue:numericValue,updatedFormData:updated},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
-      console.log('Updated form data:', updated);
-      return updated;
-    });
-    
+
+    setFormData(prev => ({ ...prev, [field]: numericValue }));
+
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: undefined }));
     }
@@ -340,17 +283,17 @@ export default function NewBookingPage() {
 
   const handlePlotSelect = (plot: Plot) => {
     setSelectedPlot(plot);
-    setFormData(prev => ({ 
-      ...prev, 
+    setFormData(prev => ({
+      ...prev,
       plotId: plot.id,
       totalAmount: plot.pricePkr,
       downPayment: 0, // Allow zero down payment
       paidAmount: 0, // Start with zero initial payment
     }));
     setPlotSearch('');
-    
+
     // Auto-select compatible payment plan if available
-    const compatiblePlan = paymentPlans.find(plan => 
+    const compatiblePlan = paymentPlans.find(plan =>
       plan.plotSizeMarla === plot.sizeMarla && plan.plotPrice === plot.pricePkr
     );
     if (compatiblePlan) {
@@ -367,30 +310,53 @@ export default function NewBookingPage() {
     // Check if plot price matches plan price
     if (selectedPlot && Math.abs(selectedPlot.pricePkr - paymentPlan.plotPrice) > 1000) {
       const priceDifference = selectedPlot.pricePkr - paymentPlan.plotPrice;
-      const message = priceDifference > 0 
+      const message = priceDifference > 0
         ? `Plot price (${formatCurrency(selectedPlot.pricePkr)}) is higher than plan price (${formatCurrency(paymentPlan.plotPrice)}) by ${formatCurrency(Math.abs(priceDifference))}`
         : `Plot price (${formatCurrency(selectedPlot.pricePkr)}) is lower than plan price (${formatCurrency(paymentPlan.plotPrice)}) by ${formatCurrency(Math.abs(priceDifference))}`;
-      
+
       alert(`Price Mismatch: ${message}. Consider using the plot's actual price.`);
     }
 
     setSelectedPaymentPlan(paymentPlan);
-    const calculatedDownPayment = paymentPlan.downPaymentAmount || 
-      (paymentPlan.downPaymentPercentage ? 
-        Math.round((paymentPlan.plotPrice * paymentPlan.downPaymentPercentage) / 100) : 0);
-    
+
     // Use the actual plot price instead of plan price if they differ significantly
-    const actualPrice = selectedPlot && Math.abs(selectedPlot.pricePkr - paymentPlan.plotPrice) > 1000 
-      ? selectedPlot.pricePkr 
+    const basePrice = selectedPlot && Math.abs(selectedPlot.pricePkr - paymentPlan.plotPrice) > 1000
+      ? selectedPlot.pricePkr
       : paymentPlan.plotPrice;
-    
-    setFormData(prev => ({ 
-      ...prev, 
-      paymentPlanId: paymentPlan.id,
-      downPayment: calculatedDownPayment,
-      installmentCount: paymentPlan.tenureMonths,
-      totalAmount: actualPrice,
+
+    // Apply current discount
+    applyDiscountToForm(paymentPlan, basePrice, discountPercent);
+  };
+
+  const applyDiscountToForm = (plan: PaymentPlan, basePrice: number, discount: number) => {
+    const factor = discount > 0 ? (1 - discount / 100) : 1;
+    const discountedPrice = Math.round(basePrice * factor);
+    const originalDownPayment = plan.downPaymentAmount ||
+      (plan.downPaymentPercentage ?
+        Math.round((basePrice * plan.downPaymentPercentage) / 100) : 0);
+    const discountedDownPayment = Math.round(originalDownPayment * factor);
+
+    setFormData(prev => ({
+      ...prev,
+      paymentPlanId: plan.id,
+      downPayment: discountedDownPayment,
+      installmentCount: plan.tenureMonths,
+      totalAmount: discountedPrice,
+      originalAmount: basePrice,
+      discountPercentage: discount,
     }));
+  };
+
+  const handleDiscountChange = (value: string) => {
+    const newDiscount = value === '' ? 0 : Math.min(100, Math.max(0, parseFloat(value) || 0));
+    setDiscountPercent(newDiscount);
+
+    if (selectedPaymentPlan) {
+      const basePrice = selectedPlot && Math.abs(selectedPlot.pricePkr - selectedPaymentPlan.plotPrice) > 1000
+        ? selectedPlot.pricePkr
+        : selectedPaymentPlan.plotPrice;
+      applyDiscountToForm(selectedPaymentPlan, basePrice, newDiscount);
+    }
   };
 
   const formatCurrency = (amount: number) => {
@@ -455,7 +421,7 @@ export default function NewBookingPage() {
                   placeholder="Search customers..."
                 />
               </div>
-              
+
               {customerSearch && (
                 <div className="mt-2 max-h-48 overflow-y-auto border border-gray-200 rounded-lg">
                   {filteredCustomers.map((customer) => (
@@ -507,7 +473,7 @@ export default function NewBookingPage() {
                   placeholder="Search plots..."
                 />
               </div>
-              
+
               {plotSearch && (
                 <div className="mt-2 max-h-48 overflow-y-auto border border-gray-200 rounded-lg">
                   {filteredPlots.map((plot) => (
@@ -557,9 +523,8 @@ export default function NewBookingPage() {
                   max={formData.totalAmount}
                   value={formData.paidAmount || ''}
                   onChange={(e) => handleNumberInputChange('paidAmount', e.target.value)}
-                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
-                    errors.paidAmount ? 'border-red-500' : 'border-gray-300'
-                  }`}
+                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${errors.paidAmount ? 'border-red-500' : 'border-gray-300'
+                    }`}
                   placeholder="0"
                 />
                 {errors.paidAmount && (
@@ -615,9 +580,8 @@ export default function NewBookingPage() {
                 min="0"
                 value={formData.totalAmount || ''}
                 readOnly
-                className={`w-full px-3 py-2 border rounded-lg bg-gray-50 cursor-not-allowed ${
-                  errors.totalAmount ? 'border-red-500' : 'border-gray-300'
-                }`}
+                className={`w-full px-3 py-2 border rounded-lg bg-gray-50 cursor-not-allowed ${errors.totalAmount ? 'border-red-500' : 'border-gray-300'
+                  }`}
                 placeholder="2500000"
               />
               {errors.totalAmount && (
@@ -662,9 +626,8 @@ export default function NewBookingPage() {
                       if (plan) handlePaymentPlanSelect(plan);
                     }
                   }}
-                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
-                    errors.paymentPlanId ? 'border-red-500' : 'border-gray-300'
-                  }`}
+                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${errors.paymentPlanId ? 'border-red-500' : 'border-gray-300'
+                    }`}
                   required
                 >
                   <option value="">Select a payment plan</option>
@@ -679,25 +642,141 @@ export default function NewBookingPage() {
                 {errors.paymentPlanId && (
                   <p className="mt-1 text-sm text-red-600">{errors.paymentPlanId}</p>
                 )}
-                {selectedPaymentPlan && (
-                  <div className="mt-2 p-3 bg-blue-50 rounded-lg">
-                    <p className="text-sm text-blue-800 font-medium">{selectedPaymentPlan.name}</p>
-                    <p className="text-sm text-blue-600">{selectedPaymentPlan.description}</p>
-                    <div className="mt-2 space-y-1 text-xs text-blue-600">
-                      <p>Monthly: {formatCurrency(selectedPaymentPlan.monthlyPayment)}</p>
-                      {selectedPaymentPlan.quarterlyPayment && (
-                        <p>Quarterly: {formatCurrency(selectedPaymentPlan.quarterlyPayment)}</p>
-                      )}
-                      {selectedPaymentPlan.biYearlyPayment && (
-                        <p>Bi-yearly: {formatCurrency(selectedPaymentPlan.biYearlyPayment)}</p>
-                      )}
-                      {selectedPaymentPlan.triannualPayment && (
-                        <p>Triannual (3x/year): {formatCurrency(selectedPaymentPlan.triannualPayment)}</p>
-                      )}
-                      <p>Tenure: {selectedPaymentPlan.tenureMonths} months</p>
-                    </div>
-                  </div>
+              </div>
+            )}
+
+            {/* Discount Percentage */}
+            {formData.paymentType === 'installment' && selectedPaymentPlan && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Discount (%)
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.5"
+                    value={discountPercent || ''}
+                    onChange={(e) => handleDiscountChange(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    placeholder="0"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">%</span>
+                </div>
+                {discountPercent > 0 && (
+                  <p className="mt-1 text-sm text-green-600 font-medium">
+                    Saving {formatCurrency(Math.round((formData.originalAmount || 0) * discountPercent / 100))} on total amount
+                  </p>
                 )}
+              </div>
+            )}
+
+            {/* Discounted Plan Summary */}
+            {formData.paymentType === 'installment' && selectedPaymentPlan && (
+              <div className="lg:col-span-2">
+                <div className={`p-4 rounded-lg border ${discountPercent > 0 ? 'bg-green-50 border-green-200' : 'bg-blue-50 border-blue-200'}`}>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className={`text-sm font-semibold ${discountPercent > 0 ? 'text-green-800' : 'text-blue-800'}`}>
+                      {selectedPaymentPlan.name} — Plan Summary
+                    </h3>
+                    {discountPercent > 0 && (
+                      <span className="px-2 py-0.5 bg-orange-100 text-orange-700 text-xs font-bold rounded-full">
+                        {discountPercent}% DISCOUNT
+                      </span>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {/* Total Amount */}
+                    <div className="bg-white p-3 rounded-lg">
+                      <div className="text-xs text-gray-500 mb-1">Total Amount</div>
+                      {discountPercent > 0 ? (
+                        <>
+                          <div className="text-xs text-gray-400 line-through">{formatCurrency(formData.originalAmount || 0)}</div>
+                          <div className="text-sm font-bold text-green-700">{formatCurrency(formData.totalAmount)}</div>
+                        </>
+                      ) : (
+                        <div className="text-sm font-bold text-gray-900">{formatCurrency(formData.totalAmount)}</div>
+                      )}
+                    </div>
+                    {/* Down Payment */}
+                    <div className="bg-white p-3 rounded-lg">
+                      <div className="text-xs text-gray-500 mb-1">Down Payment</div>
+                      {discountPercent > 0 ? (
+                        <>
+                          <div className="text-xs text-gray-400 line-through">
+                            {formatCurrency(
+                              selectedPaymentPlan.downPaymentAmount ||
+                              Math.round(((formData.originalAmount || 0) * (selectedPaymentPlan.downPaymentPercentage || 0)) / 100)
+                            )}
+                          </div>
+                          <div className="text-sm font-bold text-green-700">{formatCurrency(formData.downPayment)}</div>
+                        </>
+                      ) : (
+                        <div className="text-sm font-bold text-gray-900">{formatCurrency(formData.downPayment)}</div>
+                      )}
+                    </div>
+                    {/* Monthly Payment */}
+                    <div className="bg-white p-3 rounded-lg">
+                      <div className="text-xs text-gray-500 mb-1">Monthly Payment</div>
+                      {discountPercent > 0 ? (
+                        <>
+                          <div className="text-xs text-gray-400 line-through">{formatCurrency(selectedPaymentPlan.monthlyPayment)}</div>
+                          <div className="text-sm font-bold text-green-700">{formatCurrency(Math.round(selectedPaymentPlan.monthlyPayment * (1 - discountPercent / 100)))}</div>
+                        </>
+                      ) : (
+                        <div className="text-sm font-bold text-gray-900">{formatCurrency(selectedPaymentPlan.monthlyPayment)}</div>
+                      )}
+                    </div>
+                    {/* Tenure */}
+                    <div className="bg-white p-3 rounded-lg">
+                      <div className="text-xs text-gray-500 mb-1">Tenure</div>
+                      <div className="text-sm font-bold text-gray-900">{selectedPaymentPlan.tenureMonths} months</div>
+                    </div>
+                    {/* Quarterly (if exists) */}
+                    {selectedPaymentPlan.quarterlyPayment && selectedPaymentPlan.quarterlyPayment > 0 && (
+                      <div className="bg-white p-3 rounded-lg">
+                        <div className="text-xs text-gray-500 mb-1">Quarterly</div>
+                        {discountPercent > 0 ? (
+                          <>
+                            <div className="text-xs text-gray-400 line-through">{formatCurrency(selectedPaymentPlan.quarterlyPayment)}</div>
+                            <div className="text-sm font-bold text-green-700">{formatCurrency(Math.round(selectedPaymentPlan.quarterlyPayment * (1 - discountPercent / 100)))}</div>
+                          </>
+                        ) : (
+                          <div className="text-sm font-bold text-gray-900">{formatCurrency(selectedPaymentPlan.quarterlyPayment)}</div>
+                        )}
+                      </div>
+                    )}
+                    {/* Triannual (if exists) */}
+                    {selectedPaymentPlan.triannualPayment && selectedPaymentPlan.triannualPayment > 0 && (
+                      <div className="bg-white p-3 rounded-lg">
+                        <div className="text-xs text-gray-500 mb-1">Triannual (3x/yr)</div>
+                        {discountPercent > 0 ? (
+                          <>
+                            <div className="text-xs text-gray-400 line-through">{formatCurrency(selectedPaymentPlan.triannualPayment)}</div>
+                            <div className="text-sm font-bold text-green-700">{formatCurrency(Math.round(selectedPaymentPlan.triannualPayment * (1 - discountPercent / 100)))}</div>
+                          </>
+                        ) : (
+                          <div className="text-sm font-bold text-gray-900">{formatCurrency(selectedPaymentPlan.triannualPayment)}</div>
+                        )}
+                      </div>
+                    )}
+                    {/* Bi-Yearly (if exists) */}
+                    {selectedPaymentPlan.biYearlyPayment && selectedPaymentPlan.biYearlyPayment > 0 && (
+                      <div className="bg-white p-3 rounded-lg">
+                        <div className="text-xs text-gray-500 mb-1">Bi-Yearly</div>
+                        {discountPercent > 0 ? (
+                          <>
+                            <div className="text-xs text-gray-400 line-through">{formatCurrency(selectedPaymentPlan.biYearlyPayment)}</div>
+                            <div className="text-sm font-bold text-green-700">{formatCurrency(Math.round(selectedPaymentPlan.biYearlyPayment * (1 - discountPercent / 100)))}</div>
+                          </>
+                        ) : (
+                          <div className="text-sm font-bold text-gray-900">{formatCurrency(selectedPaymentPlan.biYearlyPayment)}</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             )}
 
@@ -713,9 +792,8 @@ export default function NewBookingPage() {
                   max={formData.downPayment}
                   value={formData.paidAmount || ''}
                   onChange={(e) => handleNumberInputChange('paidAmount', e.target.value)}
-                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
-                    errors.paidAmount ? 'border-red-500' : 'border-gray-300'
-                  }`}
+                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${errors.paidAmount ? 'border-red-500' : 'border-gray-300'
+                    }`}
                   placeholder="0"
                 />
                 {errors.paidAmount && (
@@ -754,9 +832,8 @@ export default function NewBookingPage() {
                   max="60"
                   value={formData.installmentCount || 24}
                   onChange={(e) => handleInputChange('installmentCount', parseInt(e.target.value) || 24)}
-                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
-                    errors.installmentCount ? 'border-red-500' : 'border-gray-300'
-                  }`}
+                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${errors.installmentCount ? 'border-red-500' : 'border-gray-300'
+                    }`}
                   placeholder="24"
                 />
                 {errors.installmentCount && (

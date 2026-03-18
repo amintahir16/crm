@@ -1,11 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { 
-  Calendar, 
-  DollarSign, 
-  CheckCircle, 
-  Clock, 
+import {
+  Calendar,
+  DollarSign,
+  CheckCircle,
+  Clock,
   AlertTriangle,
   CreditCard,
   TrendingUp,
@@ -32,7 +32,6 @@ interface Installment {
   paidAmount?: number;
   installmentType?: string;
   description?: string;
-  linkedPayments?: Payment[]; // Payments made for this installment
 }
 
 interface PaymentPlan {
@@ -65,7 +64,7 @@ interface PaymentSchedule {
   endDate?: string;
   paymentPlan?: PaymentPlan;
   installments?: Installment[];
-  payments?: Payment[]; // All payments made for this schedule
+  payments?: Payment[];
 }
 
 interface BookingInfo {
@@ -74,6 +73,8 @@ interface BookingInfo {
   totalAmount: number;
   paidAmount: number;
   pendingAmount: number;
+  downPayment: number;
+  paymentProgress: number;
 }
 
 interface PaymentScheduleData {
@@ -83,16 +84,17 @@ interface PaymentScheduleData {
 
 interface PaymentScheduleViewerProps {
   bookingId: string;
+  refreshKey?: number;
 }
 
-export default function PaymentScheduleViewer({ bookingId }: PaymentScheduleViewerProps) {
+export default function PaymentScheduleViewer({ bookingId, refreshKey }: PaymentScheduleViewerProps) {
   const [scheduleData, setScheduleData] = useState<PaymentScheduleData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchPaymentSchedule();
-  }, [bookingId]);
+  }, [bookingId, refreshKey]);
 
   const fetchPaymentSchedule = async () => {
     try {
@@ -197,67 +199,53 @@ export default function PaymentScheduleViewer({ bookingId }: PaymentScheduleView
     }
   };
 
-  // Calculate down payment breakdown
+  // Calculate accurate down payment breakdown
   const getDownPaymentBreakdown = () => {
     if (!scheduleData) return null;
 
     const { booking, paymentSchedule } = scheduleData;
-    const requiredDownPayment = paymentSchedule.downPayment;
-    const totalPaid = booking.paidAmount;
-    
+    const requiredDownPayment = Number(paymentSchedule.downPayment);
+
+    // Find the initial booking payment by its transactionId pattern
+    const initialPayment = paymentSchedule.payments?.find(
+      p => p.transactionId?.startsWith('BOOKING-') && p.status === 'completed'
+    );
+    const initialPaymentAmount = initialPayment ? Number(initialPayment.amount) : 0;
+
     // Find down payment balance installment
     const downPaymentInstallment = paymentSchedule.installments?.find(
       inst => inst.installmentType === 'down_payment_balance'
     );
-    
-    // Calculate initial down payment (total paid minus any other payments)
-    const otherPayments = paymentSchedule.payments?.reduce((sum, payment) => {
-      // Check if this payment is for down payment balance installment
-      const isForDownPayment = downPaymentInstallment && 
-        payment.notes?.includes('down payment') || 
-        payment.notes?.includes('Down Payment');
-      return isForDownPayment ? sum : sum + payment.amount;
-    }, 0) || 0;
-    
-    const initialDownPayment = totalPaid - otherPayments;
-    const remainingDownPayment = downPaymentInstallment?.amount || 0;
-    const downPaymentPaid = remainingDownPayment > 0 ? 
-      (downPaymentInstallment?.status === 'paid' ? remainingDownPayment : 0) : 0;
+
+    const remainingDownPayment = downPaymentInstallment ? Number(downPaymentInstallment.amount) : 0;
+    const isRemainingPaid = downPaymentInstallment?.status === 'paid';
+
+    // Calculate total paid towards down payment
+    const totalDownPaymentPaid = initialPaymentAmount + (isRemainingPaid ? remainingDownPayment : 0);
+    const pendingDownPayment = Math.max(0, requiredDownPayment - totalDownPaymentPaid);
 
     return {
       required: requiredDownPayment,
-      initial: initialDownPayment,
+      initial: initialPaymentAmount,
       remaining: remainingDownPayment,
-      remainingPaid: downPaymentPaid,
-      totalPaid: initialDownPayment + downPaymentPaid,
-      pendingDownPayment: Math.max(0, requiredDownPayment - (initialDownPayment + downPaymentPaid))
+      remainingPaid: isRemainingPaid,
+      totalPaid: totalDownPaymentPaid,
+      pendingDownPayment,
     };
   };
 
-  // Link payments to installments (simplified approach)
-  const getLinkedPayments = (installment: Installment): Payment[] => {
-    if (!scheduleData?.paymentSchedule.payments) return [];
-    
-    // For now, we'll show all payments - in a real system, you'd have a proper linking mechanism
-    // This could be enhanced with a payment_installment_links table
-    return scheduleData.paymentSchedule.payments.filter(payment => {
-      // Simple heuristic: if payment amount matches installment amount, it might be linked
-      return Math.abs(payment.amount - installment.amount) < 1000;
-    });
-  };
-
-  // Group installments by type for better display
+  // Group installments by type for summary
   const groupInstallmentsByType = () => {
     if (!scheduleData?.paymentSchedule.installments) return {};
-    
+
     const groups: { [key: string]: Installment[] } = {};
-    
+
     scheduleData.paymentSchedule.installments.forEach(installment => {
       const type = installment.installmentType || 'monthly';
       if (!groups[type]) groups[type] = [];
       groups[type].push(installment);
     });
-    
+
     return groups;
   };
 
@@ -307,7 +295,7 @@ export default function PaymentScheduleViewer({ bookingId }: PaymentScheduleView
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-blue-600">Total Amount</p>
-                <p className="text-2xl font-bold text-blue-900">{formatCurrency(booking.totalAmount)}</p>
+                <p className="text-2xl font-bold text-blue-900">{formatCurrency(Number(booking.totalAmount))}</p>
               </div>
               <DollarSign className="h-8 w-8 text-blue-600" />
             </div>
@@ -317,7 +305,7 @@ export default function PaymentScheduleViewer({ bookingId }: PaymentScheduleView
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-green-600">Paid Amount</p>
-                <p className="text-2xl font-bold text-green-900">{formatCurrency(booking.paidAmount)}</p>
+                <p className="text-2xl font-bold text-green-900">{formatCurrency(Number(booking.paidAmount))}</p>
               </div>
               <CheckCircle className="h-8 w-8 text-green-600" />
             </div>
@@ -327,7 +315,7 @@ export default function PaymentScheduleViewer({ bookingId }: PaymentScheduleView
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-orange-600">Pending Amount</p>
-                <p className="text-2xl font-bold text-orange-900">{formatCurrency(booking.pendingAmount)}</p>
+                <p className="text-2xl font-bold text-orange-900">{formatCurrency(Number(booking.pendingAmount))}</p>
               </div>
               <TrendingUp className="h-8 w-8 text-orange-600" />
             </div>
@@ -337,8 +325,8 @@ export default function PaymentScheduleViewer({ bookingId }: PaymentScheduleView
         {/* Down Payment Breakdown */}
         {(() => {
           const downPaymentInfo = getDownPaymentBreakdown();
-          if (!downPaymentInfo) return null;
-          
+          if (!downPaymentInfo || downPaymentInfo.required <= 0) return null;
+
           return (
             <div className="bg-orange-50 p-4 rounded-lg mb-6 border border-orange-200">
               <h4 className="font-medium text-orange-900 mb-3 flex items-center">
@@ -356,12 +344,20 @@ export default function PaymentScheduleViewer({ bookingId }: PaymentScheduleView
                 </div>
                 <div>
                   <p className="text-orange-600">Remaining Balance</p>
-                  <p className="font-bold text-orange-900">{formatCurrency(downPaymentInfo.remaining)}</p>
+                  <p className="font-bold text-orange-900">
+                    {formatCurrency(downPaymentInfo.remaining)}
+                    {downPaymentInfo.remainingPaid && (
+                      <span className="text-green-600 ml-1">✓ Paid</span>
+                    )}
+                  </p>
                 </div>
                 <div>
                   <p className="text-orange-600">Pending Down Payment</p>
                   <p className={`font-bold ${downPaymentInfo.pendingDownPayment > 0 ? 'text-red-900' : 'text-green-900'}`}>
-                    {formatCurrency(downPaymentInfo.pendingDownPayment)}
+                    {downPaymentInfo.pendingDownPayment > 0
+                      ? formatCurrency(downPaymentInfo.pendingDownPayment)
+                      : '✓ Fully Paid'
+                    }
                   </p>
                 </div>
               </div>
@@ -428,7 +424,7 @@ export default function PaymentScheduleViewer({ bookingId }: PaymentScheduleView
           </div>
           <div>
             <p className="text-gray-600">Down Payment</p>
-            <p className="font-medium">{formatCurrency(paymentSchedule.downPayment)}</p>
+            <p className="font-medium">{formatCurrency(Number(paymentSchedule.downPayment))}</p>
           </div>
           {paymentSchedule.installmentCount && (
             <div>
@@ -457,16 +453,18 @@ export default function PaymentScheduleViewer({ bookingId }: PaymentScheduleView
           {(() => {
             const groups = groupInstallmentsByType();
             const typeOrder = ['down_payment_balance', 'monthly', 'quarterly', 'bi_yearly', 'triannual'];
-            
+
             return (
               <div className="mb-6 grid grid-cols-2 md:grid-cols-5 gap-4">
                 {typeOrder.map(type => {
                   const installments = groups[type];
                   if (!installments || installments.length === 0) return null;
-                  
-                  const totalAmount = installments.reduce((sum, inst) => sum + inst.amount, 0);
+
+                  const totalAmount = installments.reduce((sum, inst) => sum + Number(inst.amount), 0);
                   const paidCount = installments.filter(inst => inst.status === 'paid').length;
-                  
+                  const paidAmount = installments.filter(inst => inst.status === 'paid').reduce((sum, inst) => sum + Number(inst.amount), 0);
+                  const pendingAmount = totalAmount - paidAmount;
+
                   return (
                     <div key={type} className="bg-gray-50 p-3 rounded-lg">
                       <div className="text-xs font-medium text-gray-600 mb-1">
@@ -478,8 +476,11 @@ export default function PaymentScheduleViewer({ bookingId }: PaymentScheduleView
                       <div className="text-xs text-gray-600">
                         {paidCount} paid, {installments.length - paidCount} pending
                       </div>
-                      <div className="text-xs font-medium text-gray-900">
-                        {formatCurrency(totalAmount)}
+                      <div className="text-xs font-medium text-green-700">
+                        Paid: {formatCurrency(paidAmount)}
+                      </div>
+                      <div className="text-xs font-medium text-orange-600">
+                        Pending: {formatCurrency(pendingAmount)}
                       </div>
                     </div>
                   );
@@ -510,81 +511,46 @@ export default function PaymentScheduleViewer({ bookingId }: PaymentScheduleView
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Status
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Payment Records
-                  </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {paymentSchedule.installments.map((installment, index) => {
-                  const linkedPayments = getLinkedPayments(installment);
-                  
-                  return (
-                    <tr key={installment.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {index + 1}
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                        <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${getInstallmentTypeColor(installment.installmentType)}`}>
-                          {formatInstallmentType(installment.installmentType)}
-                        </span>
-                      </td>
-                      <td className="px-4 py-4 text-sm text-gray-900">
-                        <div className="font-medium">{installment.description || '-'}</div>
-                        {installment.installmentType === 'down_payment_balance' && (
-                          <div className="text-xs text-orange-600 mt-1">
-                            Remaining down payment balance
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {formatDate(installment.dueDate)}
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                        <div className="font-medium">{formatCurrency(installment.amount)}</div>
-                        {installment.paidAmount && installment.paidAmount !== installment.amount && (
-                          <div className="text-xs text-green-600">
-                            Paid: {formatCurrency(installment.paidAmount)}
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getInstallmentStatusColor(installment.status)}`}>
-                          {getInstallmentStatusIcon(installment.status)}
-                          <span className="ml-1 capitalize">{installment.status}</span>
-                        </span>
-                        {installment.paidDate && (
-                          <div className="text-xs text-gray-500 mt-1">
-                            Paid: {formatDate(installment.paidDate)}
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-4 py-4 text-sm text-gray-500">
-                        {linkedPayments.length > 0 ? (
-                          <div className="space-y-1">
-                            {linkedPayments.map((payment, paymentIndex) => (
-                              <div key={payment.id} className="bg-green-50 p-2 rounded text-xs">
-                                <div className="font-medium text-green-800">
-                                  {formatCurrency(payment.amount)} - {payment.paymentMethod}
-                                </div>
-                                <div className="text-green-600">
-                                  {formatDate(payment.paymentDate)}
-                                </div>
-                                {payment.transactionId && (
-                                  <div className="text-green-600">
-                                    ID: {payment.transactionId}
-                                  </div>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <span className="text-gray-400 italic">No payments linked</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
+                {paymentSchedule.installments.map((installment, index) => (
+                  <tr key={installment.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      {index + 1}
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${getInstallmentTypeColor(installment.installmentType)}`}>
+                        {formatInstallmentType(installment.installmentType)}
+                      </span>
+                    </td>
+                    <td className="px-4 py-4 text-sm text-gray-900">
+                      <div className="font-medium">{installment.description || '-'}</div>
+                      {installment.installmentType === 'down_payment_balance' && (
+                        <div className="text-xs text-orange-600 mt-1">
+                          Remaining down payment balance
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {formatDate(installment.dueDate)}
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <div className="font-medium">{formatCurrency(Number(installment.amount))}</div>
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getInstallmentStatusColor(installment.status)}`}>
+                        {getInstallmentStatusIcon(installment.status)}
+                        <span className="ml-1 capitalize">{installment.status}</span>
+                      </span>
+                      {installment.paidDate && (
+                        <div className="text-xs text-gray-500 mt-1">
+                          Paid: {formatDate(installment.paidDate)}
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
@@ -602,7 +568,7 @@ export default function PaymentScheduleViewer({ bookingId }: PaymentScheduleView
                     <div className="flex justify-between items-start">
                       <div>
                         <div className="font-medium text-gray-900">
-                          {formatCurrency(payment.amount)}
+                          {formatCurrency(Number(payment.amount))}
                         </div>
                         <div className="text-sm text-gray-600">
                           {payment.paymentMethod} • {formatDate(payment.paymentDate)}
@@ -614,11 +580,10 @@ export default function PaymentScheduleViewer({ bookingId }: PaymentScheduleView
                         )}
                       </div>
                       <div className="text-right">
-                        <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
-                          payment.status === 'completed' ? 'bg-green-100 text-green-800' : 
-                          payment.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 
-                          'bg-red-100 text-red-800'
-                        }`}>
+                        <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${payment.status === 'completed' ? 'bg-green-100 text-green-800' :
+                          payment.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                            'bg-red-100 text-red-800'
+                          }`}>
                           {payment.status}
                         </span>
                         {payment.transactionId && (

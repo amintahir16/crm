@@ -53,9 +53,10 @@ interface PaymentSummary {
 
 interface BookingPaymentManagerProps {
   bookingId: string;
+  onPaymentAdded?: () => void;
 }
 
-export default function BookingPaymentManager({ bookingId }: BookingPaymentManagerProps) {
+export default function BookingPaymentManager({ bookingId, onPaymentAdded }: BookingPaymentManagerProps) {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [paymentSummary, setPaymentSummary] = useState<PaymentSummary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -81,7 +82,7 @@ export default function BookingPaymentManager({ bookingId }: BookingPaymentManag
     try {
       const token = localStorage.getItem('access_token');
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
-      
+
       const response = await fetch(`${apiUrl}/bookings/${bookingId}/payments`, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -101,7 +102,7 @@ export default function BookingPaymentManager({ bookingId }: BookingPaymentManag
     try {
       const token = localStorage.getItem('access_token');
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
-      
+
       const response = await fetch(`${apiUrl}/bookings/${bookingId}/payments/summary`, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -126,7 +127,7 @@ export default function BookingPaymentManager({ bookingId }: BookingPaymentManag
     try {
       const token = localStorage.getItem('access_token');
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
-      
+
       const response = await fetch(`${apiUrl}/bookings/${bookingId}/payments`, {
         method: 'POST',
         headers: {
@@ -153,6 +154,10 @@ export default function BookingPaymentManager({ bookingId }: BookingPaymentManag
         });
         fetchPayments();
         fetchPaymentSummary();
+        // Notify parent to refresh booking data
+        if (onPaymentAdded) {
+          onPaymentAdded();
+        }
       } else {
         const errorData = await response.json();
         alert(errorData.message || 'Failed to add payment');
@@ -174,7 +179,7 @@ export default function BookingPaymentManager({ bookingId }: BookingPaymentManag
     try {
       const token = localStorage.getItem('access_token');
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
-      
+
       const response = await fetch(`${apiUrl}/bookings/${bookingId}/payments/${paymentId}/proof`, {
         method: 'POST',
         headers: {
@@ -423,7 +428,7 @@ export default function BookingPaymentManager({ bookingId }: BookingPaymentManag
                     {new Date(payment.paymentDate).toLocaleDateString()}
                   </div>
                 </div>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-600">
                   <div>
                     <span className="font-medium">Method:</span> {payment.paymentMethod.replace('_', ' ')}

@@ -36,33 +36,24 @@ import { TasksModule } from './tasks/tasks.module';
         : undefined,
     }),
     TypeOrmModule.forRoot({
-      // Use SQLite for development, PostgreSQL for production
-      // In development, always use SQLite regardless of DATABASE_URL
-      // In production, use PostgreSQL if DATABASE_URL is set
-      type: process.env.NODE_ENV === 'development'
-        ? 'sqlite'
-        : (process.env.DATABASE_URL &&
-          (process.env.DATABASE_URL.startsWith('postgresql://') || process.env.DATABASE_URL.startsWith('postgres://'))
-          ? 'postgres'
-          : 'sqlite'),
-      ...(process.env.NODE_ENV === 'development'
+      // Use PostgreSQL if DATABASE_URL is a postgres URL, otherwise SQLite
+      type: (process.env.DATABASE_URL &&
+        (process.env.DATABASE_URL.startsWith('postgresql://') || process.env.DATABASE_URL.startsWith('postgres://')))
+        ? 'postgres'
+        : 'sqlite',
+      ...((process.env.DATABASE_URL &&
+        (process.env.DATABASE_URL.startsWith('postgresql://') || process.env.DATABASE_URL.startsWith('postgres://')))
         ? {
-          // Development: Always use SQLite
-          database: 'queen-hills.db',
+          // PostgreSQL via DATABASE_URL
+          url: process.env.DATABASE_URL,
+          ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
         }
-        : (process.env.DATABASE_URL &&
-          (process.env.DATABASE_URL.startsWith('postgresql://') || process.env.DATABASE_URL.startsWith('postgres://'))
-          ? {
-            // Production: Use PostgreSQL
-            url: process.env.DATABASE_URL,
-            ssl: { rejectUnauthorized: false },
-          }
-          : {
-            // Fallback: SQLite
-            database: process.env.DATABASE_URL || 'queen-hills.db',
-          })),
+        : {
+          // Fallback: SQLite
+          database: process.env.DATABASE_URL || 'queen-hills.db',
+        }),
       entities: [__dirname + '/**/*.entity{.ts,.js}'],
-      synchronize: process.env.NODE_ENV === 'development', // Enable in development to auto-create tables, disable in production
+      synchronize: false, // Disabled - use manual migrations to avoid destructive schema changes
       logging: process.env.NODE_ENV === 'development',
       migrations: [__dirname + '/database/migrations/*{.ts,.js}'],
       migrationsRun: process.env.NODE_ENV === 'production',

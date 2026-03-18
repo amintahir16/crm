@@ -26,6 +26,9 @@ export class Booking {
   @Column()
   plotId: string;
 
+  @Column({ unique: true, nullable: true })
+  bookingNumber: string;
+
   @Column()
   createdById: string;
 
@@ -42,6 +45,15 @@ export class Booking {
   // Computed field: totalAmount - paidAmount
   @Column('decimal', { precision: 12, scale: 2, default: 0 })
   pendingAmount: number;
+
+  @Column('decimal', { precision: 5, scale: 2, default: 0 })
+  discountPercentage: number;
+
+  @Column('decimal', { precision: 12, scale: 2, default: 0 })
+  discountAmount: number;
+
+  @Column('decimal', { precision: 12, scale: 2, nullable: true })
+  originalAmount: number;
 
   @Column({
     type: 'varchar',

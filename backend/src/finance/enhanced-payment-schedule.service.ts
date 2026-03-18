@@ -25,20 +25,32 @@ export class EnhancedPaymentScheduleService extends PaymentScheduleService {
     paymentPlan: PaymentPlan,
     actualDownPaymentPaid?: number,
     startDate?: Date,
+    discountPercentage?: number,
   ): Promise<PaymentSchedule> {
-    const requiredDownPayment = await this.paymentPlanService.calculateDownPayment(paymentPlan);
+    const discount = Number(discountPercentage) || 0;
+    const discountFactor = discount > 0 ? (1 - discount / 100) : 1;
+
+    // Apply discount to the down payment requirement
+    const originalDownPayment = await this.paymentPlanService.calculateDownPayment(paymentPlan);
+    const requiredDownPayment = Math.round(originalDownPayment * discountFactor);
     const downPaymentPaid = actualDownPaymentPaid || 0;
-    
+
+    // CRITICAL: Use booking.totalAmount (already discounted from frontend)
+    const bookingTotalAmount = Number(booking.totalAmount);
+
+    // Apply discount to the installment amount for the schedule
+    const discountedMonthlyPayment = Math.round(paymentPlan.monthlyPayment * discountFactor);
+
     const paymentSchedule = this.paymentScheduleRepository.create({
       bookingId: booking.id,
       paymentPlanId: paymentPlan.id,
       paymentType: PaymentType.INSTALLMENT,
-      totalAmount: paymentPlan.plotPrice,
+      totalAmount: bookingTotalAmount,
       downPayment: requiredDownPayment,
-      paidAmount: downPaymentPaid,
-      pendingAmount: paymentPlan.plotPrice - downPaymentPaid,
+      paidAmount: 0, // Will be updated via recordPayment when initial payment is processed
+      pendingAmount: bookingTotalAmount, // Will be updated via recordPayment
       installmentCount: paymentPlan.tenureMonths,
-      installmentAmount: paymentPlan.monthlyPayment,
+      installmentAmount: discountedMonthlyPayment,
       installmentFrequency: 'monthly',
       startDate: startDate || new Date(),
       status: PaymentScheduleStatus.ACTIVE,
@@ -51,8 +63,8 @@ export class EnhancedPaymentScheduleService extends PaymentScheduleService {
 
     const savedSchedule = await this.paymentScheduleRepository.save(paymentSchedule);
 
-    // Create installments based on payment plan
-    await this.createInstallmentsFromPlan(savedSchedule, paymentPlan, requiredDownPayment, downPaymentPaid);
+    // Create installments based on payment plan (with discount applied)
+    await this.createInstallmentsFromPlan(savedSchedule, paymentPlan, requiredDownPayment, downPaymentPaid, discountFactor);
 
     return savedSchedule;
   }
@@ -62,6 +74,7 @@ export class EnhancedPaymentScheduleService extends PaymentScheduleService {
     paymentPlan: PaymentPlan,
     requiredDownPayment: number,
     downPaymentPaid: number,
+    discountFactor: number = 1,
   ): Promise<void> {
     const installments = [];
     const startDate = new Date(paymentSchedule.startDate);
@@ -86,8 +99,9 @@ export class EnhancedPaymentScheduleService extends PaymentScheduleService {
       );
     }
 
-    // 2. Create monthly installments (starting from month 1 or 2 depending on down payment)
-    const monthlyStartMonth = remainingDownPayment > 0 ? 2 : 1; // Start from month 2 if down payment balance exists
+    // 2. Create monthly installments (with discount applied)
+    const monthlyStartMonth = remainingDownPayment > 0 ? 2 : 1;
+    const discountedMonthly = Math.round(paymentPlan.monthlyPayment * discountFactor);
     for (let i = 0; i < paymentPlan.tenureMonths; i++) {
       const dueDate = new Date(startDate);
       dueDate.setMonth(dueDate.getMonth() + monthlyStartMonth + i);
@@ -96,7 +110,7 @@ export class EnhancedPaymentScheduleService extends PaymentScheduleService {
         this.installmentRepository.create({
           bookingId: paymentSchedule.bookingId,
           paymentScheduleId: paymentSchedule.id,
-          amount: paymentPlan.monthlyPayment,
+          amount: discountedMonthly,
           dueDate,
           status: InstallmentStatus.PENDING,
           lateFee: 0,
@@ -106,8 +120,9 @@ export class EnhancedPaymentScheduleService extends PaymentScheduleService {
       );
     }
 
-    // 3. Add quarterly installments if configured (every 3 months)
+    // 3. Add quarterly installments if configured (with discount applied)
     if (paymentPlan.quarterlyPayment && paymentPlan.quarterlyPayment > 0) {
+      const discountedQuarterly = Math.round(paymentPlan.quarterlyPayment * discountFactor);
       for (let i = 3; i <= paymentPlan.tenureMonths; i += 3) {
         const dueDate = new Date(startDate);
         dueDate.setMonth(dueDate.getMonth() + monthlyStartMonth + i - 1);
@@ -116,7 +131,7 @@ export class EnhancedPaymentScheduleService extends PaymentScheduleService {
           this.installmentRepository.create({
             bookingId: paymentSchedule.bookingId,
             paymentScheduleId: paymentSchedule.id,
-            amount: paymentPlan.quarterlyPayment,
+            amount: discountedQuarterly,
             dueDate,
             status: InstallmentStatus.PENDING,
             lateFee: 0,
@@ -127,8 +142,9 @@ export class EnhancedPaymentScheduleService extends PaymentScheduleService {
       }
     }
 
-    // 4. Add bi-yearly installments if configured (every 6 months)
+    // 4. Add bi-yearly installments if configured (with discount applied)
     if (paymentPlan.biYearlyPayment && paymentPlan.biYearlyPayment > 0) {
+      const discountedBiYearly = Math.round(paymentPlan.biYearlyPayment * discountFactor);
       for (let i = 6; i <= paymentPlan.tenureMonths; i += 6) {
         const dueDate = new Date(startDate);
         dueDate.setMonth(dueDate.getMonth() + monthlyStartMonth + i - 1);
@@ -137,7 +153,7 @@ export class EnhancedPaymentScheduleService extends PaymentScheduleService {
           this.installmentRepository.create({
             bookingId: paymentSchedule.bookingId,
             paymentScheduleId: paymentSchedule.id,
-            amount: paymentPlan.biYearlyPayment,
+            amount: discountedBiYearly,
             dueDate,
             status: InstallmentStatus.PENDING,
             lateFee: 0,
@@ -148,8 +164,9 @@ export class EnhancedPaymentScheduleService extends PaymentScheduleService {
       }
     }
 
-    // 5. Add triannual installments if configured (every 4 months = 3 times per year)
+    // 5. Add triannual installments if configured (with discount applied)
     if (paymentPlan.triannualPayment && paymentPlan.triannualPayment > 0) {
+      const discountedTriannual = Math.round(paymentPlan.triannualPayment * discountFactor);
       for (let i = 4; i <= paymentPlan.tenureMonths; i += 4) {
         const dueDate = new Date(startDate);
         dueDate.setMonth(dueDate.getMonth() + monthlyStartMonth + i - 1);
@@ -158,7 +175,7 @@ export class EnhancedPaymentScheduleService extends PaymentScheduleService {
           this.installmentRepository.create({
             bookingId: paymentSchedule.bookingId,
             paymentScheduleId: paymentSchedule.id,
-            amount: paymentPlan.triannualPayment,
+            amount: discountedTriannual,
             dueDate,
             status: InstallmentStatus.PENDING,
             lateFee: 0,

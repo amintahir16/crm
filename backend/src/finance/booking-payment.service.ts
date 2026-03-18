@@ -45,7 +45,7 @@ export class BookingPaymentService {
     @InjectRepository(PaymentProof)
     private paymentProofRepository: Repository<PaymentProof>,
     private paymentScheduleService: PaymentScheduleService,
-  ) {}
+  ) { }
 
   async addManualPayment(addPaymentDto: AddPaymentDto): Promise<Payment> {
     const booking = await this.bookingRepository.findOne({
@@ -97,9 +97,9 @@ export class BookingPaymentService {
 
     const savedPayment = await this.paymentRepository.save(payment);
 
-    // Update booking payment amounts
-    booking.paidAmount = (booking.paidAmount || 0) + addPaymentDto.amount;
-    booking.pendingAmount = booking.totalAmount - booking.paidAmount;
+    // Update booking payment amounts (use Number() to avoid floating-point precision issues)
+    booking.paidAmount = Math.round((Number(booking.paidAmount) || 0) + Number(addPaymentDto.amount));
+    booking.pendingAmount = Math.round(Number(booking.totalAmount) - booking.paidAmount);
     await this.bookingRepository.save(booking);
 
     // Update payment schedule
@@ -158,6 +158,9 @@ export class BookingPaymentService {
     pendingAmount: number;
     paymentCount: number;
     lastPaymentDate: Date | null;
+    overdueAmount: number;
+    nextDueDate: Date | null;
+    paymentProgress: number;
   }> {
     const booking = await this.bookingRepository.findOne({
       where: { id: bookingId },
@@ -169,12 +172,55 @@ export class BookingPaymentService {
 
     const payments = await this.getBookingPayments(bookingId);
 
+    // Compute paid amount from actual completed payments
+    const completedPayments = payments.filter(p => p.status === 'completed');
+    const actualPaidAmount = completedPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+    const totalAmount = Number(booking.totalAmount);
+    const actualPendingAmount = totalAmount - actualPaidAmount;
+
+    // Sync booking if out of sync
+    if (Math.abs(Number(booking.paidAmount) - actualPaidAmount) > 0.01) {
+      booking.paidAmount = actualPaidAmount;
+      booking.pendingAmount = actualPendingAmount;
+      await this.bookingRepository.save(booking);
+    }
+
+    // Get overdue info from installments
+    const paymentSchedule = await this.paymentScheduleRepository.findOne({
+      where: { bookingId },
+      order: { createdAt: 'DESC' },
+    });
+
+    let overdueAmount = 0;
+    let nextDueDate: Date | null = null;
+
+    if (paymentSchedule) {
+      const { Installment, InstallmentStatus } = await import('./installment.entity');
+      const installmentRepo = this.paymentScheduleRepository.manager.getRepository(Installment);
+
+      // Get overdue installments
+      const overdueInstallments = await installmentRepo.find({
+        where: { paymentScheduleId: paymentSchedule.id, status: InstallmentStatus.OVERDUE },
+      });
+      overdueAmount = overdueInstallments.reduce((sum, inst) => sum + Number(inst.amount), 0);
+
+      // Get next due installment
+      const nextInstallment = await installmentRepo.findOne({
+        where: { paymentScheduleId: paymentSchedule.id, status: InstallmentStatus.PENDING },
+        order: { dueDate: 'ASC' },
+      });
+      nextDueDate = nextInstallment?.dueDate || null;
+    }
+
     return {
-      totalAmount: booking.totalAmount,
-      paidAmount: booking.paidAmount || 0,
-      pendingAmount: booking.pendingAmount || booking.totalAmount,
-      paymentCount: payments.length,
-      lastPaymentDate: payments.length > 0 ? payments[0].paymentDate : null,
+      totalAmount,
+      paidAmount: actualPaidAmount,
+      pendingAmount: actualPendingAmount,
+      paymentCount: completedPayments.length,
+      lastPaymentDate: completedPayments.length > 0 ? completedPayments[0].paymentDate : null,
+      overdueAmount,
+      nextDueDate,
+      paymentProgress: totalAmount > 0 ? Math.min(100, Math.round((actualPaidAmount / totalAmount) * 100)) : 0,
     };
   }
 
