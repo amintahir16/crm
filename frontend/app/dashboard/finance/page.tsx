@@ -13,6 +13,7 @@ import {
   CheckCircle,
   Clock,
   ArrowUpRight,
+  ArrowDownRight,
 } from 'lucide-react';
 import { formatPKR } from '@/utils/currency';
 
@@ -23,7 +24,13 @@ interface FinanceSummary {
   totalBookings: number;
   activePaymentPlans: number;
   overduePayments: number;
-  recentPayments: any[];
+  overdueAmount?: number;
+  monthlyGrowthText?: string;
+  totalExpenses?: number;
+  collectionRate?: number;
+  cashFlow?: number;
+  growthIndicator?: 'up' | 'down';
+  currentMonthRevenue?: number;
 }
 
 export default function FinanceManagementPage() {
@@ -46,17 +53,23 @@ export default function FinanceManagementPage() {
 
   const fetchFinanceSummary = async () => {
     try {
-      // For now, we'll create mock data since we haven't implemented the summary API yet
-      // In a real implementation, you'd fetch from: /api/v1/finance/summary
-      setSummary({
-        totalRevenue: 15750000,
-        totalPaid: 8900000,
-        totalPending: 6850000,
-        totalBookings: 45,
-        activePaymentPlans: 8,
-        overduePayments: 3,
-        recentPayments: [],
+      const token = localStorage.getItem('access_token');
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+      
+      const response = await fetch(`${apiUrl}/finance/summary`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
       });
+
+      if (response.ok) {
+        const data = await response.json();
+        setSummary(data);
+      } else {
+        console.error('Failed to fetch finance summary');
+        // Fallback to error state or empty summary
+      }
     } catch (error) {
       console.error('Error fetching finance summary:', error);
     } finally {
@@ -115,8 +128,17 @@ export default function FinanceManagementPage() {
                 </div>
               </div>
               <div className="mt-4 flex items-center">
-                <ArrowUpRight className="h-4 w-4 text-green-500 mr-1" />
-                <span className="text-sm text-green-600">12% from last month</span>
+                {summary.growthIndicator === 'up' ? (
+                  <>
+                    <ArrowUpRight className="h-4 w-4 text-green-500 mr-1" />
+                    <span className="text-sm text-green-600">{summary.monthlyGrowthText}</span>
+                  </>
+                ) : (
+                  <>
+                    <ArrowDownRight className="h-4 w-4 text-red-500 mr-1" />
+                    <span className="text-sm text-red-600">{summary.monthlyGrowthText}</span>
+                  </>
+                )}
               </div>
             </div>
 
@@ -134,7 +156,7 @@ export default function FinanceManagementPage() {
               </div>
               <div className="mt-4">
                 <span className="text-sm text-gray-600">
-                  {((summary.totalPaid / summary.totalRevenue) * 100).toFixed(1)}% of total revenue
+                  {(summary.collectionRate || 0).toFixed(1)}% of total revenue
                 </span>
               </div>
             </div>
@@ -153,7 +175,7 @@ export default function FinanceManagementPage() {
               </div>
               <div className="mt-4">
                 <span className="text-sm text-gray-600">
-                  {((summary.totalPending / summary.totalRevenue) * 100).toFixed(1)}% of total revenue
+                  {(100 - (summary.collectionRate || 0)).toFixed(1)}% of total revenue
                 </span>
               </div>
             </div>
@@ -179,11 +201,18 @@ export default function FinanceManagementPage() {
           {/* Alerts Section */}
           {summary.overduePayments > 0 && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-              <div className="flex items-center">
-                <AlertCircle className="h-5 w-5 text-red-500 mr-2" />
-                <span className="text-red-800 font-medium">
-                  {summary.overduePayments} overdue payments require attention
-                </span>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <AlertCircle className="h-5 w-5 text-red-500 mr-2" />
+                  <span className="text-red-800 font-medium">
+                    {summary.overduePayments} overdue payments require attention
+                  </span>
+                </div>
+                {summary.overdueAmount && (
+                  <span className="text-red-700 font-semibold">
+                    Amount: {formatPKR(summary.overdueAmount)}
+                  </span>
+                )}
               </div>
             </div>
           )}
@@ -238,32 +267,69 @@ export default function FinanceManagementPage() {
                 <div className="flex justify-between">
                   <span className="text-sm text-gray-600">Revenue Collection:</span>
                   <span className="text-sm font-medium text-green-600">
-                    {((summary.totalPaid / summary.totalRevenue) * 100).toFixed(1)}%
+                    {(summary.collectionRate || 0).toFixed(1)}%
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-sm text-gray-600">Profit Margin:</span>
                   <span className="text-sm font-medium text-gray-900">
-                    Coming Soon
+                    {summary.totalRevenue > 0 
+                      ? `${(((summary.totalRevenue - (summary.totalExpenses || 0)) / summary.totalRevenue) * 100).toFixed(1)}%`
+                      : '0.0%'
+                    }
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-sm text-gray-600">Cash Flow:</span>
-                  <span className="text-sm font-medium text-blue-600">
-                    Positive
+                  <span className={`text-sm font-medium ${(summary.cashFlow || 0) >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
+                    {(summary.cashFlow || 0) > 0 ? 'Positive' : (summary.cashFlow || 0) < 0 ? 'Negative' : 'Neutral'}
                   </span>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Financial Overview Placeholder */}
+          {/* Financial Overview (Real) */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <h3 className="text-lg font-medium text-gray-900 mb-4">Company Financial Overview</h3>
-            <div className="text-center py-8 text-gray-500">
-              <Calendar className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-              <p>Complete financial overview including expenses, profit/loss, and cash flow</p>
-              <p className="text-sm mt-2">This comprehensive finance management system will be implemented soon</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-10 py-4">
+              <div className="space-y-4">
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-gray-600">Revenue Performance (Collected vs Total)</span>
+                  <span className="font-semibold">{formatPKR(summary.totalPaid)} / {formatPKR(summary.totalRevenue)}</span>
+                </div>
+                <div className="w-full bg-gray-100 rounded-full h-4 overflow-hidden">
+                  <div 
+                    className="bg-green-500 h-full transition-all duration-1000"
+                    style={{ width: `${Math.min(100, summary.collectionRate || 0)}%` }}
+                  />
+                </div>
+                <p className="text-xs text-gray-500">
+                  {summary.totalRevenue > 0 
+                    ? `You've collected ${(summary.collectionRate || 0).toFixed(1)}% of total projected revenue.`
+                    : 'No revenue data currently available.'
+                  }
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-gray-600">Expense Ratio (Expenses vs Collected)</span>
+                  <span className="font-semibold">{formatPKR(summary.totalExpenses || 0)} / {formatPKR(summary.totalPaid)}</span>
+                </div>
+                <div className="w-full bg-gray-100 rounded-full h-4 overflow-hidden">
+                  <div 
+                    className="bg-red-400 h-full transition-all duration-1000"
+                    style={{ width: `${Math.min(100, (summary.totalPaid > 0 ? ((summary.totalExpenses || 0) / summary.totalPaid) * 100 : 0))}%` }}
+                  />
+                </div>
+                <p className="text-xs text-gray-500">
+                  {summary.totalPaid > 0 
+                    ? `Expenses represent ${((summary.totalExpenses || 0) / summary.totalPaid * 100).toFixed(1)}% of your collected funds.`
+                    : 'No collected funds to calculate ratio.'
+                  }
+                </p>
+              </div>
             </div>
           </div>
         </>
