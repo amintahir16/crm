@@ -146,11 +146,20 @@ export default function FlatExpensesPage() {
     }
   };
 
-  const filteredExpenses = expenses.filter(e =>
-    e.expenseName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    e.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    e.category.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredExpenses = expenses
+    .filter(e =>
+      e.expenseName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      e.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      e.category.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+    .sort((a, b) => {
+      // Primary sort by date DESC
+      const dateA = new Date(a.expenseDate).getTime();
+      const dateB = new Date(b.expenseDate).getTime();
+      if (dateB !== dateA) return dateB - dateA;
+      // Secondary sort by ID DESC for same-day entries
+      return b.id.localeCompare(a.id);
+    });
 
   const currentYear = new Date().getFullYear();
   const totalFlat = expenses

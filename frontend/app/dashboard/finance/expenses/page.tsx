@@ -94,7 +94,11 @@ export default function CompanyExpensesPage() {
       const token = localStorage.getItem('access_token');
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
       
-      const response = await fetch(`${apiUrl}/expenses/summary`, {
+      const currentYear = new Date().getFullYear();
+      const startDate = `${currentYear}-01-01`;
+      const endDate = `${currentYear}-12-31`;
+      
+      const response = await fetch(`${apiUrl}/expenses/summary?startDate=${startDate}&endDate=${endDate}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -158,11 +162,19 @@ export default function CompanyExpensesPage() {
     }
   };
 
-  const filteredExpenses = expenses.filter(expense => {
-    const matchesSearch = expense.expenseName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         expense.vendorName?.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesSearch;
-  });
+  const filteredExpenses = expenses
+    .filter(expense => {
+      const matchesSearch = expense.expenseName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                           expense.vendorName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                           expense.category.toLowerCase().includes(searchQuery.toLowerCase());
+      return matchesSearch;
+    })
+    .sort((a, b) => {
+      const dateA = new Date(a.expenseDate).getTime();
+      const dateB = new Date(b.expenseDate).getTime();
+      if (dateB !== dateA) return dateB - dateA;
+      return b.id.localeCompare(a.id);
+    });
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -182,13 +194,26 @@ export default function CompanyExpensesPage() {
   const getCategoryIcon = (category: string) => {
     switch (category) {
       case 'construction':
-        return <Building className="h-5 w-5" />;
-      case 'administrative':
-        return <Users className="h-5 w-5" />;
-      case 'maintenance':
-        return <Truck className="h-5 w-5" />;
+        return <Building className="h-4 w-4 text-orange-500" />;
+      case 'salary':
+        return <Users className="h-4 w-4 text-purple-500" />;
+      case 'office':
+      case 'office_rent':
+        return <Building className="h-4 w-4 text-blue-500" />;
+      case 'flat':
+      case 'flat_rent':
+        return <Building className="h-4 w-4 text-emerald-500" />;
       default:
-        return <FileText className="h-5 w-5" />;
+        return <FileText className="h-4 w-4 text-gray-400" />;
+    }
+  };
+
+  const formatCategoryName = (category: string): string => {
+    switch (category) {
+      case 'office_rent': return 'Office Rent';
+      case 'flat_rent': return 'Flat Rent';
+      case 'salary': return 'Salary';
+      default: return category.charAt(0).toUpperCase() + category.slice(1);
     }
   };
 
@@ -331,7 +356,7 @@ export default function CompanyExpensesPage() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center text-sm text-gray-900">
                         {getCategoryIcon(expense.category)}
-                        <span className="ml-2 capitalize">{expense.category}</span>
+                        <span className="ml-2 font-medium">{formatCategoryName(expense.category)}</span>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">

@@ -279,7 +279,14 @@ export default function IndividualSalaryPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50/50">
-                {salaries.length > 0 ? salaries.map((s) => (
+                {salaries.length > 0 ? salaries
+                  .sort((a, b) => {
+                    const dateA = new Date(a.expenseDate).getTime();
+                    const dateB = new Date(b.expenseDate).getTime();
+                    if (dateB !== dateA) return dateB - dateA;
+                    return b.id.localeCompare(a.id);
+                  })
+                  .map((s) => (
                   <tr key={s.id} className="hover:bg-primary-50/10 transition-colors group">
                     <td className="px-10 py-8">
                        <div className="flex items-center gap-3">

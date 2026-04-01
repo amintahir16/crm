@@ -77,7 +77,8 @@ export class ExpenseService {
       .leftJoinAndSelect('expense.submittedByUser', 'submittedBy')
       .leftJoinAndSelect('expense.approvedByUser', 'approvedBy')
       .leftJoinAndSelect('expense.targetUser', 'targetUser')
-      .orderBy('expense.expenseDate', 'DESC');
+      .orderBy('expense.expenseDate', 'DESC')
+      .addOrderBy('expense.createdAt', 'DESC');
 
     if (category) {
       queryBuilder.andWhere('expense.category = :category', { category });
@@ -235,9 +236,11 @@ export class ExpenseService {
     const totalExpenses = expenses.length;
     const totalAmount = expenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
     const paidAmount = expenses
-      .filter(e => e.status === ExpenseStatus.PAID)
-      .reduce((sum, e) => sum + (Number(e.paidAmount) || 0), 0);
-    const pendingAmount = totalAmount - paidAmount;
+      .filter(e => e.status === ExpenseStatus.PAID || e.status === ExpenseStatus.APPROVED)
+      .reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+    const pendingAmount = expenses
+      .filter(e => e.status === ExpenseStatus.PENDING)
+      .reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
 
     // Group by category
     const byCategory = {} as Record<ExpenseCategory, { count: number; amount: number }>;
