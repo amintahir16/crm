@@ -44,6 +44,7 @@ export default function PaymentPlansPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingPlan, setEditingPlan] = useState<PaymentPlan | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedAdditionalType, setSelectedAdditionalType] = useState<'none' | 'quarterly' | 'biYearly' | 'triannual'>('none');
 
   const [formData, setFormData] = useState({
     name: '',
@@ -82,7 +83,7 @@ export default function PaymentPlansPage() {
     }
   }, [isAuthenticated]);
 
-  // Auto-calculate derived fields when plotPrice, downPaymentPercentage, or tenureMonths change
+  // Auto-calculate derived fields when plotPrice, downPaymentPercentage, tenureMonths, or selectedAdditionalType change
   useEffect(() => {
     const plotPrice = parseFloat(formData.plotPrice) || 0;
     const downPaymentPct = parseFloat(formData.downPaymentPercentage) || 0;
@@ -91,24 +92,56 @@ export default function PaymentPlansPage() {
     if (plotPrice > 0 && downPaymentPct > 0) {
       const computedDownPayment = Math.round(plotPrice * downPaymentPct / 100);
       const remainingAmount = plotPrice - computedDownPayment;
-      const computedMonthly = Math.round(remainingAmount / tenureMonths);
-
-      const currentDownPayment = parseFloat(formData.downPaymentAmount) || 0;
-      const currentMonthly = parseFloat(formData.monthlyPayment) || 0;
 
       const updates: Record<string, string> = {};
+
+      // Always update down payment amount
+      const currentDownPayment = parseFloat(formData.downPaymentAmount) || 0;
       if (Math.abs(computedDownPayment - currentDownPayment) > 0.5) {
         updates.downPaymentAmount = computedDownPayment.toString();
       }
-      if (Math.abs(computedMonthly - currentMonthly) > 0.5) {
-        updates.monthlyPayment = computedMonthly.toString();
+
+      if (selectedAdditionalType === 'none') {
+        // Default: monthly payments
+        const computedMonthly = Math.round(remainingAmount / tenureMonths);
+        const currentMonthly = parseFloat(formData.monthlyPayment) || 0;
+        if (Math.abs(computedMonthly - currentMonthly) > 0.5) {
+          updates.monthlyPayment = computedMonthly.toString();
+        }
+        // Clear additional payments
+        if (formData.quarterlyPayment) updates.quarterlyPayment = '';
+        if (formData.biYearlyPayment) updates.biYearlyPayment = '';
+        if (formData.triannualPayment) updates.triannualPayment = '';
+      } else {
+        // Additional type selected: it becomes the primary payment
+        updates.monthlyPayment = '0';
+
+        if (selectedAdditionalType === 'quarterly') {
+          const count = Math.floor(tenureMonths / 3);
+          const computedQuarterly = count > 0 ? Math.round(remainingAmount / count) : 0;
+          updates.quarterlyPayment = computedQuarterly.toString();
+          if (formData.biYearlyPayment) updates.biYearlyPayment = '';
+          if (formData.triannualPayment) updates.triannualPayment = '';
+        } else if (selectedAdditionalType === 'biYearly') {
+          const count = Math.floor(tenureMonths / 6);
+          const computedBiYearly = count > 0 ? Math.round(remainingAmount / count) : 0;
+          updates.biYearlyPayment = computedBiYearly.toString();
+          if (formData.quarterlyPayment) updates.quarterlyPayment = '';
+          if (formData.triannualPayment) updates.triannualPayment = '';
+        } else if (selectedAdditionalType === 'triannual') {
+          const count = Math.floor(tenureMonths / 4);
+          const computedTriannual = count > 0 ? Math.round(remainingAmount / count) : 0;
+          updates.triannualPayment = computedTriannual.toString();
+          if (formData.quarterlyPayment) updates.quarterlyPayment = '';
+          if (formData.biYearlyPayment) updates.biYearlyPayment = '';
+        }
       }
 
       if (Object.keys(updates).length > 0) {
         setFormData(prev => ({ ...prev, ...updates }));
       }
     }
-  }, [formData.plotPrice, formData.downPaymentPercentage, formData.tenureMonths]);
+  }, [formData.plotPrice, formData.downPaymentPercentage, formData.tenureMonths, selectedAdditionalType]);
 
   // Calculate payment summary whenever form data changes
   useEffect(() => {
@@ -286,6 +319,16 @@ export default function PaymentPlansPage() {
       tenureMonths: plan.tenureMonths.toString(),
       notes: '',
     });
+    // Detect which additional type was active
+    if (plan.quarterlyPayment && plan.quarterlyPayment > 0 && (!plan.monthlyPayment || plan.monthlyPayment === 0)) {
+      setSelectedAdditionalType('quarterly');
+    } else if (plan.biYearlyPayment && plan.biYearlyPayment > 0 && (!plan.monthlyPayment || plan.monthlyPayment === 0)) {
+      setSelectedAdditionalType('biYearly');
+    } else if (plan.triannualPayment && plan.triannualPayment > 0 && (!plan.monthlyPayment || plan.monthlyPayment === 0)) {
+      setSelectedAdditionalType('triannual');
+    } else {
+      setSelectedAdditionalType('none');
+    }
     setShowCreateModal(true);
   };
 
@@ -331,6 +374,7 @@ export default function PaymentPlansPage() {
       tenureMonths: '24',
       notes: '',
     });
+    setSelectedAdditionalType('none');
   };
 
   const filteredPlans = paymentPlans.filter(plan => {
@@ -542,15 +586,21 @@ export default function PaymentPlansPage() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Monthly Payment (PKR) *
+                    Monthly Payment (PKR) {selectedAdditionalType === 'none' ? '*' : ''}
                   </label>
                   <input
                     type="number"
                     value={formData.monthlyPayment}
                     onChange={(e) => setFormData(prev => ({ ...prev, monthlyPayment: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                    required
+                    className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
+                      selectedAdditionalType !== 'none' ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : ''
+                    }`}
+                    required={selectedAdditionalType === 'none'}
+                    readOnly={selectedAdditionalType !== 'none'}
                   />
+                  {selectedAdditionalType !== 'none' && (
+                    <p className="text-xs text-amber-600 mt-1">Replaced by {selectedAdditionalType === 'quarterly' ? 'quarterly' : selectedAdditionalType === 'biYearly' ? 'bi-yearly' : 'triannual'} payments</p>
+                  )}
                 </div>
 
                 <div>
@@ -580,49 +630,124 @@ export default function PaymentPlansPage() {
                 </div>
 
                 <div className="col-span-2 bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
-                  <p className="text-sm text-blue-800 font-medium">Additional Payment Options</p>
+                  <p className="text-sm text-blue-800 font-medium">Payment Frequency</p>
                   <p className="text-xs text-blue-600 mt-1">
-                    Select only ONE additional payment type (or none). These are in addition to monthly payments.
+                    {selectedAdditionalType === 'none'
+                      ? 'Default: Monthly payments. Toggle an option below to use a different payment frequency.'
+                      : `Active: ${selectedAdditionalType === 'quarterly' ? 'Quarterly (every 3 months)' : selectedAdditionalType === 'biYearly' ? 'Bi-yearly (every 6 months)' : 'Triannual (every 4 months)'} — replaces monthly payments.`
+                    }
                   </p>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Quarterly Payment (PKR)
-                  </label>
+                {/* Quarterly Option */}
+                <div className={`relative rounded-lg border-2 p-3 transition-all ${
+                  selectedAdditionalType === 'quarterly'
+                    ? 'border-primary-500 bg-primary-50'
+                    : 'border-gray-200 bg-white'
+                }`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Quarterly Payment (PKR)
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedAdditionalType(prev => prev === 'quarterly' ? 'none' : 'quarterly')}
+                      className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 ${
+                        selectedAdditionalType === 'quarterly' ? 'bg-primary-600' : 'bg-gray-200'
+                      }`}
+                    >
+                      <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                        selectedAdditionalType === 'quarterly' ? 'translate-x-5' : 'translate-x-0'
+                      }`} />
+                    </button>
+                  </div>
                   <input
                     type="number"
                     value={formData.quarterlyPayment}
                     onChange={(e) => setFormData(prev => ({ ...prev, quarterlyPayment: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
+                      selectedAdditionalType === 'quarterly' ? 'bg-primary-50' : selectedAdditionalType !== 'none' ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : ''
+                    }`}
+                    readOnly={selectedAdditionalType === 'quarterly'}
+                    disabled={selectedAdditionalType !== 'none' && selectedAdditionalType !== 'quarterly'}
                   />
-                  <p className="text-xs text-gray-500 mt-1">Every 3 months</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Every 3 months{selectedAdditionalType === 'quarterly' && ` • ${Math.floor((parseInt(formData.tenureMonths) || 24) / 3)} payments`}
+                  </p>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Bi-yearly Payment (PKR)
-                  </label>
+                {/* Bi-yearly Option */}
+                <div className={`relative rounded-lg border-2 p-3 transition-all ${
+                  selectedAdditionalType === 'biYearly'
+                    ? 'border-primary-500 bg-primary-50'
+                    : 'border-gray-200 bg-white'
+                }`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Bi-yearly Payment (PKR)
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedAdditionalType(prev => prev === 'biYearly' ? 'none' : 'biYearly')}
+                      className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 ${
+                        selectedAdditionalType === 'biYearly' ? 'bg-primary-600' : 'bg-gray-200'
+                      }`}
+                    >
+                      <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                        selectedAdditionalType === 'biYearly' ? 'translate-x-5' : 'translate-x-0'
+                      }`} />
+                    </button>
+                  </div>
                   <input
                     type="number"
                     value={formData.biYearlyPayment}
                     onChange={(e) => setFormData(prev => ({ ...prev, biYearlyPayment: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
+                      selectedAdditionalType === 'biYearly' ? 'bg-primary-50' : selectedAdditionalType !== 'none' ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : ''
+                    }`}
+                    readOnly={selectedAdditionalType === 'biYearly'}
+                    disabled={selectedAdditionalType !== 'none' && selectedAdditionalType !== 'biYearly'}
                   />
-                  <p className="text-xs text-gray-500 mt-1">Every 6 months</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Every 6 months{selectedAdditionalType === 'biYearly' && ` • ${Math.floor((parseInt(formData.tenureMonths) || 24) / 6)} payments`}
+                  </p>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Triannual Payment (PKR)
-                  </label>
+                {/* Triannual Option */}
+                <div className={`relative rounded-lg border-2 p-3 transition-all ${
+                  selectedAdditionalType === 'triannual'
+                    ? 'border-primary-500 bg-primary-50'
+                    : 'border-gray-200 bg-white'
+                }`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Triannual Payment (PKR)
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedAdditionalType(prev => prev === 'triannual' ? 'none' : 'triannual')}
+                      className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 ${
+                        selectedAdditionalType === 'triannual' ? 'bg-primary-600' : 'bg-gray-200'
+                      }`}
+                    >
+                      <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                        selectedAdditionalType === 'triannual' ? 'translate-x-5' : 'translate-x-0'
+                      }`} />
+                    </button>
+                  </div>
                   <input
                     type="number"
                     value={formData.triannualPayment}
                     onChange={(e) => setFormData(prev => ({ ...prev, triannualPayment: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
+                      selectedAdditionalType === 'triannual' ? 'bg-primary-50' : selectedAdditionalType !== 'none' ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : ''
+                    }`}
+                    readOnly={selectedAdditionalType === 'triannual'}
+                    disabled={selectedAdditionalType !== 'none' && selectedAdditionalType !== 'triannual'}
                   />
-                  <p className="text-xs text-gray-500 mt-1">Every 4 months</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Every 4 months{selectedAdditionalType === 'triannual' && ` • ${Math.floor((parseInt(formData.tenureMonths) || 24) / 4)} payments`}
+                  </p>
                 </div>
 
                 <div>
@@ -662,11 +787,22 @@ export default function PaymentPlansPage() {
                       <span className="text-gray-600">Down Payment:</span>
                       <span className="font-medium text-gray-900 ml-2">{formatPKR(paymentSummary.downPayment)}</span>
                     </div>
-                    <div>
-                      <span className="text-gray-600">Monthly Payments:</span>
-                      <span className="font-medium text-gray-900 ml-2">{formatPKR(paymentSummary.totalMonthlyPayments)}</span>
-                    </div>
-                    {paymentSummary.totalAdditionalPayments > 0 && (
+                    {selectedAdditionalType === 'none' ? (
+                      <div>
+                        <span className="text-gray-600">Monthly Payments ({parseInt(formData.tenureMonths) || 24}x):</span>
+                        <span className="font-medium text-gray-900 ml-2">{formatPKR(paymentSummary.totalMonthlyPayments)}</span>
+                      </div>
+                    ) : (
+                      <div>
+                        <span className="text-gray-600">
+                          {selectedAdditionalType === 'quarterly' && `Quarterly Payments (${Math.floor((parseInt(formData.tenureMonths) || 24) / 3)}x):`}
+                          {selectedAdditionalType === 'biYearly' && `Bi-yearly Payments (${Math.floor((parseInt(formData.tenureMonths) || 24) / 6)}x):`}
+                          {selectedAdditionalType === 'triannual' && `Triannual Payments (${Math.floor((parseInt(formData.tenureMonths) || 24) / 4)}x):`}
+                        </span>
+                        <span className="font-medium text-gray-900 ml-2">{formatPKR(paymentSummary.totalAdditionalPayments)}</span>
+                      </div>
+                    )}
+                    {selectedAdditionalType === 'none' && paymentSummary.totalAdditionalPayments > 0 && (
                       <div>
                         <span className="text-gray-600">Additional Payments:</span>
                         <span className="font-medium text-gray-900 ml-2">{formatPKR(paymentSummary.totalAdditionalPayments)}</span>

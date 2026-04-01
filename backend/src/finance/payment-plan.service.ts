@@ -143,7 +143,15 @@ export class PaymentPlanService {
     }
 
     if (!paymentData.monthlyPayment || paymentData.monthlyPayment <= 0) {
-      errors.push('Monthly payment must be greater than 0');
+      // monthlyPayment can be 0 if an alternative frequency is the primary payment type
+      const hasAlternativeFrequency = 
+        (paymentData.quarterlyPayment && paymentData.quarterlyPayment > 0) ||
+        (paymentData.biYearlyPayment && paymentData.biYearlyPayment > 0) ||
+        (paymentData.triannualPayment && paymentData.triannualPayment > 0);
+      
+      if (!hasAlternativeFrequency) {
+        errors.push('Monthly payment must be greater than 0 (or select an alternative payment frequency)');
+      }
     }
 
     if (!paymentData.tenureMonths || paymentData.tenureMonths <= 0) {

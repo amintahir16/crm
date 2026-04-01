@@ -99,30 +99,36 @@ export class EnhancedPaymentScheduleService extends PaymentScheduleService {
       );
     }
 
-    // 2. Create monthly installments (with discount applied)
+    // 2. Create monthly installments ONLY if monthlyPayment > 0
+    //    When an alternative frequency is primary (quarterly/bi-yearly/triannual),
+    //    monthlyPayment will be 0 and monthly installments are skipped.
     const monthlyStartMonth = remainingDownPayment > 0 ? 2 : 1;
     const discountedMonthly = Math.round(paymentPlan.monthlyPayment * discountFactor);
-    for (let i = 0; i < paymentPlan.tenureMonths; i++) {
-      const dueDate = new Date(startDate);
-      dueDate.setMonth(dueDate.getMonth() + monthlyStartMonth + i);
+    if (discountedMonthly > 0) {
+      for (let i = 0; i < paymentPlan.tenureMonths; i++) {
+        const dueDate = new Date(startDate);
+        dueDate.setMonth(dueDate.getMonth() + monthlyStartMonth + i);
 
-      installments.push(
-        this.installmentRepository.create({
-          bookingId: paymentSchedule.bookingId,
-          paymentScheduleId: paymentSchedule.id,
-          amount: discountedMonthly,
-          dueDate,
-          status: InstallmentStatus.PENDING,
-          lateFee: 0,
-          installmentType: 'monthly',
-          description: `Monthly Installment ${i + 1}`,
-        }),
-      );
+        installments.push(
+          this.installmentRepository.create({
+            bookingId: paymentSchedule.bookingId,
+            paymentScheduleId: paymentSchedule.id,
+            amount: discountedMonthly,
+            dueDate,
+            status: InstallmentStatus.PENDING,
+            lateFee: 0,
+            installmentType: 'monthly',
+            description: `Monthly Installment ${i + 1}`,
+          }),
+        );
+      }
     }
 
     // 3. Add quarterly installments if configured (with discount applied)
     if (paymentPlan.quarterlyPayment && paymentPlan.quarterlyPayment > 0) {
       const discountedQuarterly = Math.round(paymentPlan.quarterlyPayment * discountFactor);
+      const isPrimary = discountedMonthly <= 0;
+      let qIdx = 1;
       for (let i = 3; i <= paymentPlan.tenureMonths; i += 3) {
         const dueDate = new Date(startDate);
         dueDate.setMonth(dueDate.getMonth() + monthlyStartMonth + i - 1);
@@ -136,7 +142,9 @@ export class EnhancedPaymentScheduleService extends PaymentScheduleService {
             status: InstallmentStatus.PENDING,
             lateFee: 0,
             installmentType: 'quarterly',
-            description: `Quarterly Payment (Month ${monthlyStartMonth + i - 1})`,
+            description: isPrimary
+              ? `Quarterly Installment ${qIdx++}`
+              : `Quarterly Payment (Month ${monthlyStartMonth + i - 1})`,
           }),
         );
       }
@@ -145,6 +153,8 @@ export class EnhancedPaymentScheduleService extends PaymentScheduleService {
     // 4. Add bi-yearly installments if configured (with discount applied)
     if (paymentPlan.biYearlyPayment && paymentPlan.biYearlyPayment > 0) {
       const discountedBiYearly = Math.round(paymentPlan.biYearlyPayment * discountFactor);
+      const isPrimary = discountedMonthly <= 0;
+      let bIdx = 1;
       for (let i = 6; i <= paymentPlan.tenureMonths; i += 6) {
         const dueDate = new Date(startDate);
         dueDate.setMonth(dueDate.getMonth() + monthlyStartMonth + i - 1);
@@ -158,7 +168,9 @@ export class EnhancedPaymentScheduleService extends PaymentScheduleService {
             status: InstallmentStatus.PENDING,
             lateFee: 0,
             installmentType: 'bi_yearly',
-            description: `Bi-Yearly Payment (Month ${monthlyStartMonth + i - 1})`,
+            description: isPrimary
+              ? `Bi-Yearly Installment ${bIdx++}`
+              : `Bi-Yearly Payment (Month ${monthlyStartMonth + i - 1})`,
           }),
         );
       }
@@ -167,6 +179,8 @@ export class EnhancedPaymentScheduleService extends PaymentScheduleService {
     // 5. Add triannual installments if configured (with discount applied)
     if (paymentPlan.triannualPayment && paymentPlan.triannualPayment > 0) {
       const discountedTriannual = Math.round(paymentPlan.triannualPayment * discountFactor);
+      const isPrimary = discountedMonthly <= 0;
+      let tIdx = 1;
       for (let i = 4; i <= paymentPlan.tenureMonths; i += 4) {
         const dueDate = new Date(startDate);
         dueDate.setMonth(dueDate.getMonth() + monthlyStartMonth + i - 1);
@@ -180,7 +194,9 @@ export class EnhancedPaymentScheduleService extends PaymentScheduleService {
             status: InstallmentStatus.PENDING,
             lateFee: 0,
             installmentType: 'triannual',
-            description: `Triannual Payment (Month ${monthlyStartMonth + i - 1})`,
+            description: isPrimary
+              ? `Triannual Installment ${tIdx++}`
+              : `Triannual Payment (Month ${monthlyStartMonth + i - 1})`,
           }),
         );
       }
