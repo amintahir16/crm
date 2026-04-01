@@ -67,14 +67,14 @@ export default function FlatExpensesPage() {
     try {
       const token = localStorage.getItem('access_token');
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
-      
+
       const res = await fetch(`${apiUrl}/expenses?limit=1000`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
         const data = await res.json();
         // Filter for both flat and rent
-        const filtered = data.expenses.filter((e: any) => 
+        const filtered = data.expenses.filter((e: any) =>
           e.category === 'flat' || e.category === 'flat_rent'
         );
         setExpenses(filtered);
@@ -88,7 +88,7 @@ export default function FlatExpensesPage() {
     try {
       const token = localStorage.getItem('access_token');
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
-      
+
       const res = await fetch(`${apiUrl}/expenses/trend/flat`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -106,7 +106,7 @@ export default function FlatExpensesPage() {
     try {
       const token = localStorage.getItem('access_token');
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
-      
+
       const response = await fetch(`${apiUrl}/expenses`, {
         method: 'POST',
         headers: {
@@ -146,7 +146,7 @@ export default function FlatExpensesPage() {
     }
   };
 
-  const filteredExpenses = expenses.filter(e => 
+  const filteredExpenses = expenses.filter(e =>
     e.expenseName.toLowerCase().includes(searchQuery.toLowerCase()) ||
     e.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     e.category.toLowerCase().includes(searchQuery.toLowerCase())
@@ -174,7 +174,7 @@ export default function FlatExpensesPage() {
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
           <div>
-            <button 
+            <button
               onClick={() => router.push('/dashboard/finance')}
               className="flex items-center text-sm text-gray-500 hover:text-gray-700 mb-2"
             >
@@ -240,7 +240,7 @@ export default function FlatExpensesPage() {
                   const height = amount > 0 ? Math.max((amount / max) * 100, 15) : 0;
                   return (
                     <div key={i} className="flex-1 h-full flex flex-col justify-end items-center group relative">
-                      <div 
+                      <div
                         className="w-full bg-orange-100 group-hover:bg-orange-600 transition-all rounded-t-lg relative"
                         style={{ height: `${height}%`, minHeight: '6px' }}
                       >
@@ -267,7 +267,7 @@ export default function FlatExpensesPage() {
             <h2 className="text-lg font-semibold text-gray-900">Expense Logs</h2>
             <div className="relative w-full md:w-80">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <input 
+              <input
                 type="text"
                 placeholder="Search..."
                 value={searchQuery}
@@ -276,7 +276,7 @@ export default function FlatExpensesPage() {
               />
             </div>
           </div>
-          
+
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
@@ -299,15 +299,14 @@ export default function FlatExpensesPage() {
                       {e.description && <p className="text-xs text-gray-400 mt-0.5">{e.description}</p>}
                     </td>
                     <td className="px-6 py-5">
-                      <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider ${
-                        e.category === 'flat_rent' ? 'bg-indigo-50 text-indigo-600' : 'bg-orange-50 text-orange-600'
-                      }`}>
+                      <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider ${e.category === 'flat_rent' ? 'bg-indigo-50 text-indigo-600' : 'bg-orange-50 text-orange-600'
+                        }`}>
                         {e.category === 'flat_rent' ? 'Rent' : 'Daily'}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{formatPKR(e.amount)}</td>
                     <td className="px-6 py-5 text-center">
-                      <button 
+                      <button
                         onClick={() => handleDelete(e.id)}
                         className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
                       >
@@ -336,64 +335,64 @@ export default function FlatExpensesPage() {
               <h2 className="text-lg font-bold text-gray-900">
                 {modalType === 'flat' ? 'Add Flat Expense' : 'Record Flat Rent'}
               </h2>
-              <button 
+              <button
                 onClick={() => setShowModal(false)}
                 className="p-2 text-gray-400 hover:bg-gray-100 rounded-lg"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
-            
+
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               {modalType === 'flat' && (
                 <div>
                   <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Expense Title</label>
-                  <input 
+                  <input
                     required
                     type="text"
                     placeholder="e.g. Paint, Cleaning Services"
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm"
                     value={formData.expenseName}
-                    onChange={(e) => setFormData({...formData, expenseName: e.target.value})}
+                    onChange={(e) => setFormData({ ...formData, expenseName: e.target.value })}
                   />
                 </div>
               )}
-              
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Amount (PKR)</label>
-                  <input 
+                  <input
                     required
                     type="number"
                     className="w-full px-4 py-3 bg-gray-50 border-none rounded-xl text-sm font-bold"
                     value={formData.amount}
-                    onChange={(e) => setFormData({...formData, amount: e.target.value})}
+                    onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
                   />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Date</label>
-                  <input 
+                  <input
                     required
                     type="date"
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm"
                     value={formData.expenseDate}
-                    onChange={(e) => setFormData({...formData, expenseDate: e.target.value})}
+                    onChange={(e) => setFormData({ ...formData, expenseDate: e.target.value })}
                   />
                 </div>
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Details</label>
-                <textarea 
+                <textarea
                   rows={3}
                   className="w-full px-4 py-3 bg-gray-50 border-none rounded-xl text-sm resize-none"
                   value={formData.description}
-                  onChange={(e) => setFormData({...formData, description: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 />
               </div>
 
               <div className="pt-2">
-                <button 
+                <button
                   type="submit"
                   className="w-full py-3 bg-orange-600 text-white font-semibold rounded-lg hover:bg-orange-700"
                 >
