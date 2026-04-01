@@ -224,7 +224,7 @@ export default function BookingsPage() {
             <div>
               <p className="text-sm font-medium text-gray-600">Total Value</p>
               <p className="text-2xl font-bold text-gray-900">
-                {formatCurrency(bookings.reduce((sum, b) => sum + b.totalAmount, 0))}
+                {formatCurrency(bookings.reduce((sum, b) => sum + (Number(b.totalAmount) || 0), 0))}
               </p>
             </div>
             <div className="p-3 bg-purple-100 rounded-lg">
