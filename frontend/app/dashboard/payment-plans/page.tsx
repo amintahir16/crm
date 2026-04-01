@@ -82,6 +82,34 @@ export default function PaymentPlansPage() {
     }
   }, [isAuthenticated]);
 
+  // Auto-calculate derived fields when plotPrice, downPaymentPercentage, or tenureMonths change
+  useEffect(() => {
+    const plotPrice = parseFloat(formData.plotPrice) || 0;
+    const downPaymentPct = parseFloat(formData.downPaymentPercentage) || 0;
+    const tenureMonths = parseInt(formData.tenureMonths) || 24;
+
+    if (plotPrice > 0 && downPaymentPct > 0) {
+      const computedDownPayment = Math.round(plotPrice * downPaymentPct / 100);
+      const remainingAmount = plotPrice - computedDownPayment;
+      const computedMonthly = Math.round(remainingAmount / tenureMonths);
+
+      const currentDownPayment = parseFloat(formData.downPaymentAmount) || 0;
+      const currentMonthly = parseFloat(formData.monthlyPayment) || 0;
+
+      const updates: Record<string, string> = {};
+      if (Math.abs(computedDownPayment - currentDownPayment) > 0.5) {
+        updates.downPaymentAmount = computedDownPayment.toString();
+      }
+      if (Math.abs(computedMonthly - currentMonthly) > 0.5) {
+        updates.monthlyPayment = computedMonthly.toString();
+      }
+
+      if (Object.keys(updates).length > 0) {
+        setFormData(prev => ({ ...prev, ...updates }));
+      }
+    }
+  }, [formData.plotPrice, formData.downPaymentPercentage, formData.tenureMonths]);
+
   // Calculate payment summary whenever form data changes
   useEffect(() => {
     calculatePaymentSummary();
