@@ -63,7 +63,7 @@ export class DashboardController {
 
     // Calculate total revenue from bookings
     const bookings = await this.bookingRepository.find();
-    const totalRevenue = bookings.reduce((sum, booking) => sum + booking.totalAmount, 0);
+    const totalRevenue = bookings.reduce((sum, booking) => sum + (Number(booking.totalAmount) || 0), 0);
 
     // Calculate pending receivables from booking pending amounts
     const pendingReceivables = bookings.reduce((sum, booking) => sum + (booking.pendingAmount || 0), 0);
@@ -79,7 +79,7 @@ export class DashboardController {
     });
     const monthlyRevenue = monthlyBookings
       .filter(booking => booking.createdAt >= currentMonth)
-      .reduce((sum, booking) => sum + booking.totalAmount, 0);
+      .reduce((sum, booking) => sum + (Number(booking.totalAmount) || 0), 0);
 
     // Calculate quarterly growth (simplified calculation)
     const quarterlyGrowth = this.calculateQuarterlyGrowth(monthlyRevenue, totalRevenue);

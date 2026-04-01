@@ -378,7 +378,7 @@ export default function Dashboard() {
             <div>
               <p className="text-sm font-medium text-gray-600">Total Revenue</p>
               <p className="text-2xl font-bold text-gray-900">
-                {formatPKR(stats?.totalRevenue || 0)}
+                {formatPKR(Number(stats?.totalRevenue) || 0)}
               </p>
             </div>
             <div className="p-3 bg-green-100 rounded-lg">
@@ -387,7 +387,7 @@ export default function Dashboard() {
           </div>
           <div className="mt-4">
             <span className="text-sm text-gray-500">
-              {formatPKR(stats?.pendingReceivables || 0)} pending
+              {formatPKR(Number(stats?.pendingReceivables) || 0)} pending
             </span>
           </div>
         </div>
@@ -557,7 +557,7 @@ export default function Dashboard() {
             <div>
               <p className="text-xs font-medium text-gray-600">Monthly Revenue</p>
               <p className="text-lg font-bold text-gray-900">
-                {formatPKR(stats?.monthlyRevenue || 0)}
+                {formatPKR(Number(stats?.monthlyRevenue) || 0)}
               </p>
             </div>
             <div className="p-2 bg-green-100 rounded-lg">
