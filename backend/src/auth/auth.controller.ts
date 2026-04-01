@@ -25,4 +25,16 @@ export class AuthController {
     }
     return user;
   }
-} 
+
+  @Post('refresh')
+  async refresh(@Body() body: { refresh_token: string }) {
+    if (!body.refresh_token) {
+      throw new HttpException('Refresh token is required', HttpStatus.BAD_REQUEST);
+    }
+    const result = await this.authService.refreshToken(body.refresh_token);
+    if (!result) {
+      throw new HttpException('Invalid refresh token', HttpStatus.UNAUTHORIZED);
+    }
+    return result;
+  }
+}

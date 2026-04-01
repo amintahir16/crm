@@ -49,4 +49,33 @@ export class AuthService {
     const { passwordHash, ...result } = user;
     return result;
   }
-} 
+
+  async refreshToken(token: string) {
+    try {
+      const payload = this.jwtService.verify(token);
+      const user = await this.userRepository.findOne({ where: { id: payload.sub } });
+      
+      if (!user) {
+        throw new Error('User not found');
+      }
+
+      const newPayload = { email: user.email, sub: user.id, role: user.role };
+      const access_token = this.jwtService.sign(newPayload);
+      const refresh_token = this.jwtService.sign(newPayload, { expiresIn: '7d' });
+
+      return {
+        access_token,
+        refresh_token,
+        user: {
+          id: user.id,
+          email: user.email,
+          fullName: user.fullName,
+          role: user.role,
+          isActive: user.isActive,
+        },
+      };
+    } catch (e) {
+      return null;
+    }
+  }
+}

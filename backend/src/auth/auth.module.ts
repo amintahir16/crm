@@ -13,7 +13,7 @@ import { User } from '../users/user.entity';
     PassportModule,
     JwtModule.register({
       secret: 'queen-hills-super-secret-jwt-key-2024',
-      signOptions: { expiresIn: '1h' },
+      signOptions: { expiresIn: '15m' },
     }),
   ],
   providers: [AuthService, JwtStrategy],
