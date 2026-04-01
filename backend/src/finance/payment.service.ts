@@ -5,6 +5,7 @@ import { Payment, PaymentMethod, PaymentStatus } from './payment.entity';
 import { PaymentSchedule } from './payment-schedule.entity';
 import { Installment, InstallmentStatus } from './installment.entity';
 import { Booking, BookingStatus } from '../bookings/booking.entity';
+import { Plot, PlotStatus } from '../plots/plot.entity';
 import { AuditService } from '../audit/audit.service';
 import { AuditAction, AuditEntity, AuditSeverity } from '../audit/audit-log.entity';
 
@@ -19,6 +20,8 @@ export class PaymentService {
     private installmentRepository: Repository<Installment>,
     @InjectRepository(Booking)
     private bookingRepository: Repository<Booking>,
+    @InjectRepository(Plot)
+    private plotRepository: Repository<Plot>,
     private auditService: AuditService,
   ) {}
 
@@ -397,8 +400,12 @@ export class PaymentService {
     // Update booking status based on payment progress
     if (booking.pendingAmount <= 0) {
       booking.status = BookingStatus.COMPLETED;
+      // Update plot status to SOLD
+      await this.plotRepository.update(booking.plotId, { status: PlotStatus.SOLD });
     } else if (booking.paidAmount >= booking.downPayment && booking.status === BookingStatus.PENDING) {
       booking.status = BookingStatus.CONFIRMED;
+      // Update plot status to SOLD when booking is confirmed
+      await this.plotRepository.update(booking.plotId, { status: PlotStatus.SOLD });
     }
 
     await this.bookingRepository.save(booking);

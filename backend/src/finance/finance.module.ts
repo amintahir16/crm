@@ -21,6 +21,7 @@ import { BookingPaymentService } from './booking-payment.service';
 import { EnhancedPaymentScheduleService } from './enhanced-payment-schedule.service';
 import { ExpenseService } from './expense.service';
 import { Booking } from '../bookings/booking.entity';
+import { Plot } from '../plots/plot.entity';
 import { AuditModule } from '../audit/audit.module';
 
 @Module({
@@ -33,6 +34,7 @@ import { AuditModule } from '../audit/audit.module';
     PaymentProof, 
     Expense,
     Booking,
+    Plot,
     Account, 
     JournalEntry, 
     JournalLine

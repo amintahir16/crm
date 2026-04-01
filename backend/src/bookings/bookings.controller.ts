@@ -79,6 +79,23 @@ export class BookingsController {
       .take(limitNum)
       .getManyAndCount();
 
+    // Self-heal: sync plot statuses with booking statuses (fixes stale data)
+    for (const booking of bookings) {
+      if (booking.plot) {
+        const expectedPlotStatus = 
+          booking.status === BookingStatus.CONFIRMED || booking.status === BookingStatus.COMPLETED
+            ? PlotStatus.SOLD
+            : booking.status === BookingStatus.PENDING
+              ? PlotStatus.RESERVED
+              : null;
+        
+        if (expectedPlotStatus && booking.plot.status !== expectedPlotStatus) {
+          await this.plotRepository.update(booking.plot.id, { status: expectedPlotStatus });
+          booking.plot.status = expectedPlotStatus;
+        }
+      }
+    }
+
     // Add additional data for dashboard
     const bookingsWithStats = await Promise.all(
       bookings.map(async (booking) => {
@@ -349,6 +366,17 @@ export class BookingsController {
   async updateBookingStatus(@Param('id') id: string, @Body() body: { status: BookingStatus }) {
     await this.bookingRepository.update(id, { status: body.status });
     const booking = await this.bookingRepository.findOne({ where: { id } });
+
+    // Sync plot status with booking status
+    if (booking?.plotId) {
+      if (body.status === BookingStatus.CONFIRMED || body.status === BookingStatus.COMPLETED) {
+        await this.plotRepository.update(booking.plotId, { status: PlotStatus.SOLD });
+      } else if (body.status === BookingStatus.CANCELLED) {
+        await this.plotRepository.update(booking.plotId, { status: PlotStatus.AVAILABLE });
+      } else if (body.status === BookingStatus.PENDING) {
+        await this.plotRepository.update(booking.plotId, { status: PlotStatus.RESERVED });
+      }
+    }
 
     return {
       ...booking,
