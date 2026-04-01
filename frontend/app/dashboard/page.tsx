@@ -99,6 +99,8 @@ export default function Dashboard() {
   const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
   const [isLoadingStats, setIsLoadingStats] = useState(true);
   const [salesManagerData, setSalesManagerData] = useState<any>(null);
+  const [salesTrend, setSalesTrend] = useState<Array<{ month: string; bookings: number; revenue: number }>>([]);
+  const [revenueDistribution, setRevenueDistribution] = useState<{ collected: number; pending: number; overdue: number } | null>(null);
 
   const quickActions: QuickAction[] = [
     {
@@ -206,6 +208,8 @@ export default function Dashboard() {
         } else {
           // Admin dashboard
           setStats(data.stats);
+          setSalesTrend(data.salesTrend || []);
+          setRevenueDistribution(data.revenueDistribution || null);
           setRecentActivities(data.recentActivities);
         }
       } else {
@@ -586,28 +590,178 @@ export default function Dashboard() {
       {/* Charts and Analytics - Only for Admin */}
       {!isSalesManager() && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Sales Chart */}
+          {/* Sales Trend Chart */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Sales Trend</h3>
-            <div className="h-64 bg-gray-50 rounded-lg flex items-center justify-center">
-              <div className="text-center">
-                <BarChart3 className="h-12 w-12 text-gray-400 mx-auto mb-2" />
-                <p className="text-gray-500">Sales analytics chart</p>
-                <p className="text-xs text-gray-400 mt-1">Coming soon</p>
+            {salesTrend.length > 0 ? (
+              <div className="h-64 flex flex-col">
+                {/* Bar Chart */}
+                <div className="flex-1 flex items-end gap-2">
+                  {(() => {
+                    const maxRevenue = Math.max(...salesTrend.map(m => m.revenue), 1);
+                    return salesTrend.map((month, i) => (
+                      <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                        {month.revenue > 0 && (
+                          <span className="text-[10px] text-gray-500 font-medium">
+                            {(month.revenue / 100000).toFixed(1)}L
+                          </span>
+                        )}
+                        <div className="w-full flex flex-col items-center gap-0.5">
+                          {/* Revenue bar */}
+                          <div
+                            className="w-full max-w-[40px] rounded-t-md transition-all duration-500"
+                            style={{
+                              height: `${Math.max(month.revenue > 0 ? 8 : 0, (month.revenue / maxRevenue) * 180)}px`,
+                              background: 'linear-gradient(180deg, #6366f1, #818cf8)',
+                            }}
+                          />
+                        </div>
+                        {/* Booking count badge */}
+                        {month.bookings > 0 && (
+                          <span className="text-[10px] bg-indigo-100 text-indigo-700 rounded-full px-1.5 py-0.5 font-semibold">
+                            {month.bookings}
+                          </span>
+                        )}
+                      </div>
+                    ));
+                  })()}
+                </div>
+                {/* Month labels */}
+                <div className="flex gap-2 mt-2 border-t border-gray-100 pt-2">
+                  {salesTrend.map((month, i) => (
+                    <div key={i} className="flex-1 text-center">
+                      <span className="text-xs font-medium text-gray-600">{month.month}</span>
+                    </div>
+                  ))}
+                </div>
+                {/* Legend */}
+                <div className="flex items-center justify-center gap-4 mt-3">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-3 h-3 rounded-sm bg-indigo-500"></div>
+                    <span className="text-xs text-gray-500">Revenue</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-3 h-3 rounded-full bg-indigo-100 border border-indigo-300"></div>
+                    <span className="text-xs text-gray-500">Bookings</span>
+                  </div>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="h-64 flex items-center justify-center">
+                <p className="text-gray-400 text-sm">No sales data yet</p>
+              </div>
+            )}
           </div>
 
-          {/* Revenue Distribution */}
+          {/* Revenue Distribution Donut Chart */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Revenue Distribution</h3>
-            <div className="h-64 bg-gray-50 rounded-lg flex items-center justify-center">
-              <div className="text-center">
-                <PieChart className="h-12 w-12 text-gray-400 mx-auto mb-2" />
-                <p className="text-gray-500">Revenue breakdown</p>
-                <p className="text-xs text-gray-400 mt-1">Coming soon</p>
+            {revenueDistribution && (revenueDistribution.collected > 0 || revenueDistribution.pending > 0 || revenueDistribution.overdue > 0) ? (
+              <div className="h-64 flex flex-col items-center justify-center">
+                {(() => {
+                  const { collected, pending, overdue } = revenueDistribution;
+                  const total = collected + pending + overdue;
+                  if (total === 0) return <p className="text-gray-400 text-sm">No revenue data</p>;
+
+                  const collectedPct = (collected / total) * 100;
+                  const pendingPct = (pending / total) * 100;
+                  const overduePct = (overdue / total) * 100;
+
+                  // SVG donut chart using stroke-dasharray
+                  const radius = 60;
+                  const circumference = 2 * Math.PI * radius;
+                  const collectedDash = (collectedPct / 100) * circumference;
+                  const pendingDash = (pendingPct / 100) * circumference;
+                  const overdueDash = (overduePct / 100) * circumference;
+
+                  let offset = 0;
+                  const collectedOffset = offset;
+                  offset += collectedDash;
+                  const pendingOffset = offset;
+                  offset += pendingDash;
+                  const overdueOffset = offset;
+
+                  return (
+                    <>
+                      <div className="relative">
+                        <svg width="160" height="160" viewBox="0 0 160 160">
+                          {/* Background circle */}
+                          <circle cx="80" cy="80" r={radius} fill="none" stroke="#f3f4f6" strokeWidth="20" />
+                          {/* Collected */}
+                          {collectedPct > 0 && (
+                            <circle
+                              cx="80" cy="80" r={radius} fill="none"
+                              stroke="#10b981" strokeWidth="20"
+                              strokeDasharray={`${collectedDash} ${circumference - collectedDash}`}
+                              strokeDashoffset={-collectedOffset}
+                              transform="rotate(-90 80 80)"
+                              className="transition-all duration-700"
+                            />
+                          )}
+                          {/* Pending */}
+                          {pendingPct > 0 && (
+                            <circle
+                              cx="80" cy="80" r={radius} fill="none"
+                              stroke="#f59e0b" strokeWidth="20"
+                              strokeDasharray={`${pendingDash} ${circumference - pendingDash}`}
+                              strokeDashoffset={-pendingOffset}
+                              transform="rotate(-90 80 80)"
+                              className="transition-all duration-700"
+                            />
+                          )}
+                          {/* Overdue */}
+                          {overduePct > 0 && (
+                            <circle
+                              cx="80" cy="80" r={radius} fill="none"
+                              stroke="#ef4444" strokeWidth="20"
+                              strokeDasharray={`${overdueDash} ${circumference - overdueDash}`}
+                              strokeDashoffset={-overdueOffset}
+                              transform="rotate(-90 80 80)"
+                              className="transition-all duration-700"
+                            />
+                          )}
+                        </svg>
+                        {/* Center text */}
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <div className="text-center">
+                            <p className="text-xs text-gray-500">Total</p>
+                            <p className="text-sm font-bold text-gray-900">{formatPKR(total)}</p>
+                          </div>
+                        </div>
+                      </div>
+                      {/* Legend */}
+                      <div className="flex flex-col gap-2 mt-4 w-full">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
+                            <span className="text-xs text-gray-600">Collected</span>
+                          </div>
+                          <span className="text-xs font-semibold text-gray-900">{formatPKR(collected)}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className="w-3 h-3 rounded-full bg-amber-500"></div>
+                            <span className="text-xs text-gray-600">Pending</span>
+                          </div>
+                          <span className="text-xs font-semibold text-gray-900">{formatPKR(pending)}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                            <span className="text-xs text-gray-600">Overdue</span>
+                          </div>
+                          <span className="text-xs font-semibold text-gray-900">{formatPKR(overdue)}</span>
+                        </div>
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
-            </div>
+            ) : (
+              <div className="h-64 flex items-center justify-center">
+                <p className="text-gray-400 text-sm">No revenue data yet</p>
+              </div>
+            )}
           </div>
 
           {/* Performance Metrics */}
