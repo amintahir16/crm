@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between } from 'typeorm';
+import { Repository, Between, In } from 'typeorm';
 import { Expense, ExpenseCategory, ExpenseStatus } from './expense.entity';
 import { Account } from './entities';
 import { AuditService } from '../audit/audit.service';
@@ -28,6 +28,10 @@ export class ExpenseService {
     invoiceNumber?: string;
     accountId?: string;
     submittedBy: string;
+    targetUserId?: string;
+    baseAmount?: number;
+    bonusAmount?: number;
+    deductionAmount?: number;
   }): Promise<Expense> {
     const expense = this.expenseRepository.create({
       ...createExpenseDto,
@@ -59,18 +63,20 @@ export class ExpenseService {
     status?: ExpenseStatus;
     startDate?: Date;
     endDate?: Date;
+    targetUserId?: string;
   }): Promise<{
     expenses: Expense[];
     total: number;
     page: number;
     limit: number;
   }> {
-    const { page = 1, limit = 50, category, status, startDate, endDate } = options;
+    const { page = 1, limit = 50, category, status, startDate, endDate, targetUserId } = options;
     const skip = (page - 1) * limit;
 
     const queryBuilder = this.expenseRepository.createQueryBuilder('expense')
       .leftJoinAndSelect('expense.submittedByUser', 'submittedBy')
       .leftJoinAndSelect('expense.approvedByUser', 'approvedBy')
+      .leftJoinAndSelect('expense.targetUser', 'targetUser')
       .orderBy('expense.expenseDate', 'DESC');
 
     if (category) {
@@ -79,6 +85,10 @@ export class ExpenseService {
 
     if (status) {
       queryBuilder.andWhere('expense.status = :status', { status });
+    }
+
+    if (targetUserId) {
+      queryBuilder.andWhere('expense.targetUserId = :targetUserId', { targetUserId });
     }
 
     if (startDate && endDate) {
@@ -223,10 +233,10 @@ export class ExpenseService {
     const expenses = await queryBuilder.getMany();
 
     const totalExpenses = expenses.length;
-    const totalAmount = expenses.reduce((sum, e) => sum + e.amount, 0);
+    const totalAmount = expenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
     const paidAmount = expenses
       .filter(e => e.status === ExpenseStatus.PAID)
-      .reduce((sum, e) => sum + e.paidAmount, 0);
+      .reduce((sum, e) => sum + (Number(e.paidAmount) || 0), 0);
     const pendingAmount = totalAmount - paidAmount;
 
     // Group by category
@@ -235,7 +245,7 @@ export class ExpenseService {
       const categoryExpenses = expenses.filter(e => e.category === category);
       byCategory[category] = {
         count: categoryExpenses.length,
-        amount: categoryExpenses.reduce((sum, e) => sum + e.amount, 0),
+        amount: categoryExpenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0),
       };
     });
 
@@ -245,7 +255,7 @@ export class ExpenseService {
       const statusExpenses = expenses.filter(e => e.status === status);
       byStatus[status] = {
         count: statusExpenses.length,
-        amount: statusExpenses.reduce((sum, e) => sum + e.amount, 0),
+        amount: statusExpenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0),
       };
     });
 
@@ -257,6 +267,39 @@ export class ExpenseService {
       byCategory,
       byStatus,
     };
+  }
+
+  async getMonthlyTrend(category: ExpenseCategory): Promise<Array<{ month: string; amount: number }>> {
+    const result = [];
+    const now = new Date();
+    
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const year = d.getFullYear();
+      const month = d.getMonth() + 1;
+      
+      const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+      const lastDay = new Date(year, month, 0).getDate();
+      const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+      
+      // RAW SQL - The final most reliable way to bypass any TypeORM mapping issues
+      const query = `
+        SELECT COALESCE(SUM(CAST(amount AS NUMERIC)), 0) as total 
+        FROM expenses 
+        WHERE LOWER(category) = LOWER($1) 
+        AND "expenseDate" >= $2::date 
+        AND "expenseDate" <= $3::date
+      `;
+      
+      const [rawResult] = await this.expenseRepository.query(query, [category, startDate, endDate]);
+
+      result.push({
+        month: d.toLocaleString('default', { month: 'short' }),
+        amount: parseFloat(rawResult?.total || '0'),
+      });
+    }
+
+    return result;
   }
 }
 

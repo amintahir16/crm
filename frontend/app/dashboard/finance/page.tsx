@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import {
   DollarSign,
   TrendingUp,
+  TrendingDown,
   Users,
   Calendar,
   CreditCard,
@@ -14,6 +15,9 @@ import {
   Clock,
   ArrowUpRight,
   ArrowDownRight,
+  Home,
+  Building,
+  Briefcase,
 } from 'lucide-react';
 import { formatPKR } from '@/utils/currency';
 
@@ -247,16 +251,40 @@ export default function FinanceManagementPage() {
               <h3 className="text-lg font-medium text-gray-900 mb-4">Company Expenses</h3>
               <div className="space-y-3">
                 <button 
-                  onClick={() => router.push('/dashboard/finance/expenses')}
-                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg"
+                  onClick={() => router.push('/dashboard/finance/expenses/office')}
+                  className="group flex items-center justify-between p-4 bg-white border border-gray-100 rounded-xl hover:border-blue-200 hover:shadow-sm transition-all"
                 >
-                  Construction Expenses
+                  <div className="flex items-center">
+                    <div className="p-2 bg-blue-50 rounded-lg group-hover:bg-blue-100 transition-colors mr-4">
+                      <Building className="h-5 w-5 text-blue-600" />
+                    </div>
+                    <span className="text-sm font-semibold text-gray-700 group-hover:text-blue-700 transition-colors">Office Expenses & Rent</span>
+                  </div>
+                  <ArrowUpRight className="h-4 w-4 text-gray-300 group-hover:text-blue-400 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all" />
                 </button>
-                <button className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg">
-                  Marketing Expenses
+                <button 
+                  onClick={() => router.push('/dashboard/finance/expenses/flat')}
+                  className="group flex items-center justify-between p-4 bg-white border border-gray-100 rounded-xl hover:border-orange-200 hover:shadow-sm transition-all"
+                >
+                  <div className="flex items-center">
+                    <div className="p-2 bg-orange-50 rounded-lg group-hover:bg-orange-100 transition-colors mr-4">
+                      <Home className="h-5 w-5 text-orange-600" />
+                    </div>
+                    <span className="text-sm font-semibold text-gray-700 group-hover:text-orange-700 transition-colors">Flat Expenses & Rent</span>
+                  </div>
+                  <ArrowUpRight className="h-4 w-4 text-gray-300 group-hover:text-orange-400 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all" />
                 </button>
-                <button className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg">
-                  Administrative Costs
+                <button 
+                  onClick={() => router.push('/dashboard/finance/expenses/salaries')}
+                  className="group flex items-center justify-between p-4 bg-white border border-gray-100 rounded-xl hover:border-purple-200 hover:shadow-sm transition-all"
+                >
+                  <div className="flex items-center">
+                    <div className="p-2 bg-purple-50 rounded-lg group-hover:bg-purple-100 transition-colors mr-4">
+                      <Briefcase className="h-5 w-5 text-purple-600" />
+                    </div>
+                    <span className="text-sm font-semibold text-gray-700 group-hover:text-purple-700 transition-colors">Salaries to Employees</span>
+                  </div>
+                  <ArrowUpRight className="h-4 w-4 text-gray-300 group-hover:text-purple-400 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all" />
                 </button>
               </div>
             </div>

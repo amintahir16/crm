@@ -31,9 +31,12 @@ export class ExpenseController {
       dueDate?: string;
       description?: string;
       vendorName?: string;
-      vendorContact?: string;
       invoiceNumber?: string;
       accountId?: string;
+      targetUserId?: string;
+      baseAmount?: number;
+      bonusAmount?: number;
+      deductionAmount?: number;
     },
     @GetUser() user: User,
   ): Promise<Expense> {
@@ -53,6 +56,7 @@ export class ExpenseController {
     @Query('status') status?: ExpenseStatus,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
+    @Query('targetUserId') targetUserId?: string,
   ) {
     return this.expenseService.getAllExpenses({
       page: page ? parseInt(page) : undefined,
@@ -61,6 +65,7 @@ export class ExpenseController {
       status,
       startDate: startDate ? new Date(startDate) : undefined,
       endDate: endDate ? new Date(endDate) : undefined,
+      targetUserId,
     });
   }
 
@@ -74,6 +79,11 @@ export class ExpenseController {
       : undefined;
 
     return this.expenseService.getExpenseSummary(dateRange);
+  }
+
+  @Get('trend/:category')
+  async getMonthlyTrend(@Param('category') category: ExpenseCategory) {
+    return this.expenseService.getMonthlyTrend(category);
   }
 
   @Get(':id')

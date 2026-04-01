@@ -12,6 +12,12 @@ export enum ExpenseCategory {
   MARKETING = 'marketing',
   INSURANCE = 'insurance',
   TAXES = 'taxes',
+  OFFICE = 'office',
+  KITCHEN = 'kitchen',
+  OFFICE_RENT = 'office_rent',
+  SALARY = 'salary',
+  FLAT = 'flat',
+  FLAT_RENT = 'flat_rent',
   OTHER = 'other',
 }
 
@@ -97,6 +103,18 @@ export class Expense {
   @Column({ nullable: true })
   rejectionReason: string;
 
+  @Column({ nullable: true })
+  targetUserId: string;
+
+  @Column('decimal', { precision: 12, scale: 2, nullable: true })
+  baseAmount: number;
+
+  @Column('decimal', { precision: 12, scale: 2, nullable: true, default: 0 })
+  bonusAmount: number;
+
+  @Column('decimal', { precision: 12, scale: 2, nullable: true, default: 0 })
+  deductionAmount: number;
+
   @CreateDateColumn()
   createdAt: Date;
 
@@ -110,5 +128,9 @@ export class Expense {
   @ManyToOne(() => User, { nullable: true })
   @JoinColumn({ name: 'approvedBy' })
   approvedByUser: User;
+
+  @ManyToOne(() => User, { nullable: true })
+  @JoinColumn({ name: 'targetUserId' })
+  targetUser: User;
 }
 

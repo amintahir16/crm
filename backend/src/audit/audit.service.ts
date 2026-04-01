@@ -26,7 +26,12 @@ export class AuditService {
       metadata?: any;
       isSensitive?: boolean;
     } = {},
-  ): Promise<AuditLog> {
+  ): Promise<AuditLog | void> {
+    if (!userId) {
+      console.warn(`[AuditService] Skipped logging due to missing userId for action: ${action}`);
+      return;
+    }
+
     const auditLog = this.auditLogRepository.create({
       userId,
       action,

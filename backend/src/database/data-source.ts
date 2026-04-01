@@ -30,28 +30,43 @@ import { LeadCommunication } from '../leads/lead-communication.entity';
 import { LeadNote } from '../leads/lead-note.entity';
 import { SalesActivity } from '../users/sales-activity.entity';
 
+import * as fs from 'fs';
+import * as path from 'path';
+
+// Manual .env loading to avoid dependency issues
+const envPath = path.resolve(process.cwd(), '.env');
+if (fs.existsSync(envPath)) {
+  const envConfig = fs.readFileSync(envPath, 'utf8');
+  envConfig.split('\n').forEach(line => {
+    const [key, ...valueParts] = line.split('=');
+    if (key && valueParts.length > 0) {
+      const value = valueParts.join('=').trim();
+      process.env[key.trim()] = value;
+    }
+  });
+}
+
 const configService = new ConfigService();
 
-// Determine database type based on DATABASE_URL (same logic as app.module.ts)
+// Determine database type based on DATABASE_URL
 const databaseUrl = process.env.DATABASE_URL || configService.get('DATABASE_URL');
 const isPostgres = databaseUrl && (databaseUrl.startsWith('postgresql://') || databaseUrl.startsWith('postgres://'));
-const isProduction = process.env.NODE_ENV === 'production';
 
 // Create DataSource configuration based on environment
 let dataSourceConfig: any;
 
-if (isProduction && isPostgres) {
-  // Production PostgreSQL
+if (isPostgres) {
+  // PostgreSQL (Railway dev/prod)
   dataSourceConfig = {
     type: 'postgres' as const,
     url: databaseUrl,
     ssl: { rejectUnauthorized: false },
   };
 } else {
-  // Development SQLite or fallback
+  // Fallback to SQLite
   dataSourceConfig = {
     type: 'sqlite' as const,
-    database: databaseUrl || 'queen-hills.db',
+    database: 'queen-hills.db',
   };
 }
 

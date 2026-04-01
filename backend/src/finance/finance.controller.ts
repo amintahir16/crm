@@ -67,11 +67,14 @@ export class FinanceController {
     const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
 
     const currentMonthRevenue = bookings
-      .filter(b => b.createdAt >= currentMonthStart)
+      .filter(b => new Date(b.createdAt) >= currentMonthStart)
       .reduce((sum, b) => sum + (Number(b.totalAmount) || 0), 0);
 
     const lastMonthRevenue = bookings
-      .filter(b => b.createdAt >= lastMonthStart && b.createdAt <= lastMonthEnd)
+      .filter(b => {
+        const d = new Date(b.createdAt);
+        return d >= lastMonthStart && d <= lastMonthEnd;
+      })
       .reduce((sum, b) => sum + (Number(b.totalAmount) || 0), 0);
 
     const growthVal = lastMonthRevenue > 0 
