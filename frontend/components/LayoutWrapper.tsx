@@ -2,7 +2,7 @@
 
 import { useAuth } from '@/contexts/AuthContext';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import DashboardHeader from './dashboard/DashboardHeader';
 import DashboardSidebar from './dashboard/DashboardSidebar';
 
@@ -12,8 +12,14 @@ interface LayoutWrapperProps {
 
 export default function LayoutWrapper({ children }: LayoutWrapperProps) {
   const { isAuthenticated, isLoading } = useAuth();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
+
+  // Close sidebar on navigation change (for mobile)
+  useEffect(() => {
+    setIsSidebarOpen(false);
+  }, [pathname]);
 
   // Check if this is a dashboard route
   const isDashboardRoute = pathname.startsWith('/dashboard');
@@ -23,18 +29,15 @@ export default function LayoutWrapper({ children }: LayoutWrapperProps) {
   // Handle authentication redirects
   useEffect(() => {
     if (!isLoading) {
-      // If authenticated and on auth pages, redirect to dashboard
       if (isAuthenticated && isAuthRoute) {
         router.push('/dashboard');
       }
-      // If not authenticated and on dashboard routes, redirect to login
       else if (!isAuthenticated && isDashboardRoute) {
         router.push('/auth/login');
       }
     }
   }, [isLoading, isAuthenticated, isDashboardRoute, isAuthRoute, router]);
 
-  // If loading, show loading state
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -74,12 +77,27 @@ export default function LayoutWrapper({ children }: LayoutWrapperProps) {
   if (isAuthenticated && isDashboardRoute) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <DashboardHeader />
-        <div className="flex">
-          <div className="w-72 flex-shrink-0"></div>
-          <DashboardSidebar />
-          <main className="flex-1 ml-1 mr-4 pt-24 pb-6 pl-6 pr-6 min-h-[calc(100vh-6rem)]">
-            <div className="w-full">
+        <DashboardHeader onMenuClick={() => setIsSidebarOpen(true)} />
+        
+        {/* Mobile Backdrop */}
+        {isSidebarOpen && (
+          <div 
+            className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-40 lg:hidden transition-opacity"
+            onClick={() => setIsSidebarOpen(false)}
+          />
+        )}
+
+        <div className="flex relative">
+          {/* Desktop Spacer */}
+          <div className="hidden lg:block w-72 flex-shrink-0" />
+          
+          <DashboardSidebar 
+            isOpen={isSidebarOpen} 
+            onClose={() => setIsSidebarOpen(false)} 
+          />
+          
+          <main className="flex-1 pt-24 pb-6 px-4 md:px-6 lg:px-8 min-h-[calc(100vh-6rem)] relative">
+            <div className="w-full max-w-full overflow-x-auto">
               {children}
             </div>
           </main>

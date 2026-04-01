@@ -2,11 +2,15 @@
 
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { User, LogOut, Settings } from 'lucide-react';
+import { User, LogOut, Settings, Menu } from 'lucide-react';
 import Image from 'next/image';
 import NotificationBell from '@/components/notifications/NotificationBell';
 
-export default function DashboardHeader() {
+interface DashboardHeaderProps {
+  onMenuClick?: () => void;
+}
+
+export default function DashboardHeader({ onMenuClick }: DashboardHeaderProps) {
   const { user, logout } = useAuth();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
 
@@ -25,8 +29,15 @@ export default function DashboardHeader() {
   return (
     <header className="fixed top-4 left-4 right-4 bg-white rounded-2xl shadow-xl border border-gray-100 z-30 h-16 backdrop-blur-sm">
       <div className="px-6 h-full flex items-center justify-between">
-          {/* Logo and Title */}
+          {/* Menu and Logo Section */}
           <div className="flex items-center space-x-4">
+            <button
+              onClick={onMenuClick}
+              className="lg:hidden p-2 -ml-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              aria-label="Toggle Menu"
+            >
+              <Menu className="h-6 w-6" />
+            </button>
             <div className="flex items-center space-x-3">
               <Image
                 src="/marketing_assets/logos/4.png"
@@ -35,7 +46,7 @@ export default function DashboardHeader() {
                 height={40}
                 className="rounded"
               />
-              <h1 className="text-xl font-semibold text-gray-900">Queen Hills Murree</h1>
+              <h1 className="text-xl font-semibold text-gray-900 hidden sm:block">Queen Hills Murree</h1>
             </div>
             <div className="hidden md:block">
               <span className="text-sm text-gray-500">Management Dashboard</span>

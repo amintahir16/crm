@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useAuth, UserRole } from '@/contexts/AuthContext';
 import {
@@ -36,6 +37,7 @@ import {
   Target,
   Clock,
   UserPlus,
+  X,
 } from 'lucide-react';
 
 interface MenuItem {
@@ -341,7 +343,12 @@ const getMenuItemsForRole = (role: UserRole): MenuItem[] => {
   }
 };
 
-export default function DashboardSidebar() {
+interface DashboardSidebarProps {
+  isOpen?: boolean;
+  onClose?: () => void;
+}
+
+export default function DashboardSidebar({ isOpen, onClose }: DashboardSidebarProps) {
   const pathname = usePathname();
   const { user } = useAuth();
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
@@ -361,9 +368,34 @@ export default function DashboardSidebar() {
   const menuItems = user?.role ? getMenuItemsForRole(user.role) : [];
 
   return (
-    <aside className="fixed left-4 top-24 bottom-4 w-64 bg-white rounded-2xl shadow-xl border border-gray-100 z-30 flex flex-col backdrop-blur-sm">
+    <aside className={`
+      fixed inset-y-0 left-0 z-50 w-72 bg-white shadow-2xl transition-transform duration-300 ease-in-out
+      lg:translate-x-4 lg:fixed lg:top-24 lg:bottom-4 lg:w-64 lg:rounded-2xl lg:shadow-xl lg:border lg:border-gray-100 lg:z-30 lg:backdrop-blur-sm
+      ${isOpen ? 'translate-x-0' : '-translate-x-full'}
+      lg:translate-x-0
+    `}>
+      {/* Mobile Header with Close Button */}
+      <div className="flex items-center justify-between p-4 lg:hidden border-b border-gray-100">
+        <div className="flex items-center space-x-3">
+          <Image
+            src="/marketing_assets/logos/4.png"
+            alt="Logo"
+            width={32}
+            height={32}
+            className="rounded"
+          />
+          <span className="font-semibold text-gray-900">Navigation</span>
+        </div>
+        <button
+          onClick={onClose}
+          className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+        >
+          <X className="h-6 w-6" />
+        </button>
+      </div>
+
       {/* Scrollable Navigation */}
-      <nav className="flex-1 overflow-y-auto scrollbar-thin p-4 pt-4">
+      <nav className="flex-1 overflow-y-auto scrollbar-thin p-4 pt-6 lg:pt-4">
         <ul className="space-y-1">
           {menuItems.map((item) => {
             const hasChildren = item.children && item.children.length > 0;
@@ -431,7 +463,7 @@ export default function DashboardSidebar() {
       </nav>
 
       {/* Sidebar Footer */}
-      <div className="flex-shrink-0 bg-white border-t border-gray-100 px-4 py-3 rounded-b-2xl">
+      <div className="flex-shrink-0 bg-white border-t border-gray-100 px-4 py-3 lg:rounded-b-2xl">
         <div className="text-xs text-gray-500 text-center">
           <p className="font-medium text-gray-700">{user?.fullName}</p>
           <p className="text-gray-500 capitalize">{user?.role?.replace('_', ' ')}</p>
@@ -439,4 +471,4 @@ export default function DashboardSidebar() {
       </div>
     </aside>
   );
-} 
+}
